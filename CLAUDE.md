@@ -67,4 +67,21 @@ then reboot, or ask the user to restart it.
   (`tabArmed`). While the screen is off Duo polls every 500 ms and doesn't draw.
 - Scripted keys: `TAB` = press + release (two screenshots), `TABHOLD` = press, held, release.
 
+## Local changes (0.6.0)
+
+- Calculator: the result screen is `calcLCD` (ds.go): dark dot mesh, black frame, orange outline,
+  white digits, an orange underscore cursor (a bar read as a "1"), on a translucent drop shadow
+  instead of the input field's striped end caps.
+- Self-update (`update.go`): Settings > Launcher > "Check for updates" reads `const version` from
+  main.go on GitHub (`updateRepo`), and if newer downloads the tarball, builds it on the device
+  (`~/.local/go/bin/go`, `-p 1`, GOTOOLCHAIN=local) into ~/.cache/dslauncher/update/app.new,
+  checks it runs with `--sounds` (old builds have no `--version`), then `installScript` keeps
+  app.prev and src.prev and swaps in app, src and app.conf, and Duo re-execs itself.
+  "Undo last update" (shown when app.prev exists) swaps them back. sudo (`withSudo`) is asked for
+  only if Duo's folder isn't writable. Build log: ~/.cache/dslauncher/update/build.log.
+- **Releasing:** bump `const version` in main.go and `VERSION` in pkg/app.conf, then push to
+  `main`. Devices update from `main`, so only push code that builds and passes tests.
+- `app --version` prints the version; `app --update-check` downloads and builds the latest
+  without installing it.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

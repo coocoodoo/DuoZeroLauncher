@@ -440,14 +440,14 @@ func (v *Calc) Draw(a *App) {
 		y := 24 + i*13
 		g.textR(x+w-8, y, fit(h[0]+" = "+h[1], w-16, 1, false), hex(0xb0b0b0), 1, false)
 	}
-	g.dsInput(x, 88, w, 24, true, a.theme())
+	ix, iw := g.calcLCD(x, 88, w, 24)
 	s := string(v.expr)
-	for textW(s, 2, false) > w-48 && len(s) > 0 {
+	for textW(s, 2, false) > iw-22 && len(s) > 0 {
 		s = s[1:]
 	}
-	g.text(x+w-18-textW(s, 2, false), 92, s, cWhite, 2, false)
-	if int(a.t*2)%2 == 0 {
-		g.rect(x+w-17, 91, 2, 18, cFocus)
+	g.text(ix+iw-15-textW(s, 2, false), 92, s, cWhite, 2, false)
+	if int(a.t*2)%2 == 0 { // an underscore after the number, so it can't read as a digit "1"
+		g.rect(ix+iw-12, 106, 7, 2, cFocus)
 	}
 	if v.err != "" {
 		g.text(x+2, 118, v.err, cBad, 1, false)

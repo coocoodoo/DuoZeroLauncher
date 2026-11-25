@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-const version = "0.5.0"
+const version = "0.6.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -84,6 +84,13 @@ type App struct {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		fmt.Println(version)
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "--update-check" {
+		os.Exit(updateCheckCLI())
+	}
 	if len(os.Args) == 3 && os.Args[1] == "--sounds" {
 		if err := writeSoundPreview(os.Args[2]); err != nil {
 			fmt.Fprintln(os.Stderr, err)

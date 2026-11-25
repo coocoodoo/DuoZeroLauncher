@@ -67,6 +67,9 @@ var (
 	cCalToday    = hex(0x3e5c78) // today's dotted border: dark dots
 	cCalTodayLt  = hex(0xa9bccd) // today's dotted border: light dots
 	cPlateLine   = hex(0x9a9a9a) // outline of the white clock and calendar plates
+	cLCD         = hex(0x232323) // calculator screen
+	cLCDDot      = hex(0x313131) // its dot mesh
+	cLCDShade    = hex(0x161616) // its top shadow
 	cBlack       = RGB{}
 	cPictoEnter  = hex(0xe3f300)
 	cPictoExit   = hex(0x00fbba)
@@ -285,6 +288,30 @@ func (g *G) dsLoading(x, y int, t float64) {
 	}
 }
 
+// calcLCD is the calculator's result screen: a black frame and orange outline filled with a fine
+// dot mesh (the input texture tiled into grey blocks at this height), floating on a soft
+// translucent drop shadow instead of the input field's striped end caps. Returns the inner left
+// edge and width.
+func (g *G) calcLCD(x, y, w, h int) (int, int) {
+	ix, iw := x+2, w-4
+	// shadow: two translucent layers, offset down and right, so the paper shows through
+	g.shade(ix+1, y+2, iw+2, h+1, cBlack, 0.12)
+	g.shade(ix+2, y+3, iw, h, cBlack, 0.18)
+	for dy := 1; dy < h-1; dy++ {
+		for dx := 1; dx < iw-1; dx++ {
+			c := cLCD
+			if dx%2 == 0 && dy%2 == 0 {
+				c = cLCDDot
+			}
+			g.px(ix+dx, y+dy, c)
+		}
+	}
+	g.hline(ix+1, y+1, iw-2, cLCDShade) // soft top shadow
+	g.frame(ix, y, iw, h, cBlack)
+	g.frame(ix-1, y-1, iw+2, h+2, cFocus)
+	return ix, iw
+}
+
 // dsInput is the striped dark input field with its bumpers; focus adds the orange outline.
 func (g *G) dsInput(x, y, w, h int, focus bool, base RGB) {
 	bl, br := tex("input_before.png"), tex("input_after.png")
@@ -444,7 +471,7 @@ func (g *G) dsCalendar(x, y, w, h int, now time.Time) {
 
 	const plateH, headH = 16, 14
 	colW := (w - 2) / 7
-	gw := colW*7 + 1        // grid width, lines included
+	gw := colW*7 + 1         // grid width, lines included
 	gx := x + (w-gw-2)/2 + 1 // inside the 1-px dark frame
 	rowH := min((y+h-(y+plateH)-headH-2)/rows, 16)
 

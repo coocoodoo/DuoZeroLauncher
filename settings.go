@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -550,12 +551,17 @@ func launcherPage(a *App) View {
 					l.Refresh(a, l)
 				}},
 			{Label: "Version", Value: "Duo Launcher " + version},
-			{Label: "Back to the system launcher", Kind: rowAction, Do: func(a *App, r *Row) {
+			{Label: "Check for updates", Kind: rowAction, Value: "GITHUB", Do: func(a *App, r *Row) { checkForUpdates(a) }},
+		}
+		if fileExists(filepath.Join(appDir, "app.prev")) {
+			l.Rows = append(l.Rows, &Row{Label: "Undo last update", Kind: rowAction, Do: func(a *App, r *Row) { undoUpdate(a) }})
+		}
+		l.Rows = append(l.Rows,
+			&Row{Label: "Back to the system launcher", Kind: rowAction, Do: func(a *App, r *Row) {
 				confirm(a, "LEAVE?", "Close Duo Launcher and return to the system launcher.", func() {
 					a.leave, a.quit = true, true
 				})
-			}},
-		}
+			}})
 	}
 	l.Refresh(a, l)
 	return l

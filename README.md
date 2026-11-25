@@ -33,6 +33,9 @@ launcher is the next phase.
   alarm), System (versions, memory, storage, licences, restart, power off). Admin actions ask for
   the account password on the device (kept in memory for 10 minutes).
 - **Lock screen** with an optional PIN, **alarm**, screen **dimming**, and a **calculator**.
+- **Updates itself from GitHub:** Settings > Launcher > Check for updates downloads the latest
+  source from this repository, builds it on the device and restarts into it (the previous
+  version is kept; "Undo last update" puts it back). Needs Go at `~/.local/go`.
 
 ## Build and install
 
