@@ -204,6 +204,14 @@ then reboot, or ask the user to restart it.
   (`pcCompose`), tool and button columns; TYPE/DRAW modes via the optional `typing()` that
   `syncText` now checks. Written from the protocol only: ayunpictojava has no licence, so none
   of its code or images are used. pict.chat itself needs a captcha token, which Duo never sends.
+- Internet chats by room code: `mqtt.go` is a small MQTT 3.1.1 client (TLS, last will, QoS 0,
+  keep-alive); `picto_mqtt.go` (`pcConnectCode` -> `pcNet`, a `pcLink` like `pcClient`) meets
+  everyone with the same code on `pcBrokers` (tried in a fixed order so all land on the same
+  one). `pcKeys`: PBKDF2-SHA256 (100k) of the code gives the AES-256-GCM key and the topic
+  `duopicto1/<hex>`; `/p` carries presence (hello every 8 s, `ask` for an immediate reply, bye,
+  and the last will), `/m/<room>` the messages; everything is sealed with the topic as AAD and
+  stamped (more than 10 min off is dropped). Members unseen for 25 s count as gone.
+  `picto_mqtt_test.go` has a fake broker; `DSL_MQTT_LIVE=1` tries the real ones.
 - Scripted runs: `DSL_PICTO_NOLAN=1` skips UDP discovery, `DSL_PICTO_ADDR=127.0.0.1:0` hosts on
   localhost only, and the key `BOT` (in a room) has a second client "Rin" join and send a
   drawing. Tests: `picto_test.go` (WebSocket round trip, two clients through the host, compose,

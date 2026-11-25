@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"sync"
@@ -103,16 +103,22 @@ func wsDial(u *url.URL, timeout time.Duration) (*wsConn, error) {
 		return nil, err
 	}
 	br := bufio.NewReader(c)
-	resp, err := http.ReadResponse(br, &http.Request{Method: "GET"})
+	tp := textproto.NewReader(br)
+	status, err := tp.ReadLine()
 	if err != nil {
 		c.Close()
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusSwitchingProtocols {
+	hdr, err := tp.ReadMIMEHeader()
+	if err != nil {
 		c.Close()
-		return nil, fmt.Errorf("the server said %s", resp.Status)
+		return nil, err
 	}
-	if resp.Header.Get("Sec-WebSocket-Accept") != wsAccept(key) {
+	if f := strings.Fields(status); len(f) < 2 || f[1] != "101" {
+		c.Close()
+		return nil, fmt.Errorf("the server said %q", status)
+	}
+	if hdr.Get("Sec-WebSocket-Accept") != wsAccept(key) {
 		c.Close()
 		return nil, errors.New("not a WebSocket server")
 	}
@@ -120,28 +126,35 @@ func wsDial(u *url.URL, timeout time.Duration) (*wsConn, error) {
 	return &wsConn{c: c, r: br, client: true}, nil
 }
 
-// wsUpgrade turns an HTTP request into a server-side connection.
-func wsUpgrade(w http.ResponseWriter, r *http.Request) (*wsConn, error) {
-	key := r.Header.Get("Sec-WebSocket-Key")
-	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") || key == "" {
-		http.Error(w, "Duo PictoChat: connect with a WebSocket", http.StatusUpgradeRequired)
-		return nil, errors.New("not a WebSocket request")
-	}
-	hj, ok := w.(http.Hijacker)
-	if !ok {
-		return nil, errors.New("can't take over the connection")
-	}
-	c, brw, err := hj.Hijack()
+// wsServe reads an HTTP upgrade request from a new connection and answers it, giving the
+// server side of a WebSocket. Anything else gets a short refusal. (Done by hand rather than
+// with net/http, which would add megabytes to Duo for one handshake.)
+func wsServe(c net.Conn) (*wsConn, error) {
+	c.SetDeadline(time.Now().Add(10 * time.Second))
+	br := bufio.NewReader(c)
+	tp := textproto.NewReader(br)
+	line, err := tp.ReadLine()
 	if err != nil {
 		return nil, err
+	}
+	hdr, err := tp.ReadMIMEHeader()
+	if err != nil {
+		return nil, err
+	}
+	key := hdr.Get("Sec-WebSocket-Key")
+	if !strings.HasPrefix(line, "GET ") || !strings.EqualFold(hdr.Get("Upgrade"), "websocket") || key == "" {
+		msg := "Duo PictoChat: connect with a WebSocket\n"
+		io.WriteString(c, fmt.Sprintf("HTTP/1.1 426 Upgrade Required\r\nContent-Type: text/plain\r\n"+
+			"Content-Length: %d\r\nConnection: close\r\n\r\n%s", len(msg), msg))
+		return nil, errors.New("not a WebSocket request")
 	}
 	resp := "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
 		"Sec-WebSocket-Accept: " + wsAccept(key) + "\r\n\r\n"
 	if _, err := io.WriteString(c, resp); err != nil {
-		c.Close()
 		return nil, err
 	}
-	return &wsConn{c: c, r: brw.Reader}, nil
+	c.SetDeadline(time.Time{})
+	return &wsConn{c: c, r: br}, nil
 }
 
 // Read returns the next text message. It answers pings itself and returns io.EOF when the other

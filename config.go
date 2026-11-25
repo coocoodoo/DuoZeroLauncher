@@ -30,6 +30,7 @@ type Config struct {
 	Used       map[string]int64
 	LastSSH    string
 	PictoAddr  string // the last PictoChat server joined by address
+	PictoCode  string // the last internet PictoChat room code
 	AlarmOn    bool
 	AlarmH     int
 	AlarmM     int
@@ -117,6 +118,8 @@ func loadConfig() *Config {
 			c.LastSSH = v
 		case "picto_addr":
 			c.PictoAddr = v
+		case "picto_code":
+			c.PictoCode = v
 		case "alarm_on":
 			c.AlarmOn = b
 		case "alarm_h":
@@ -163,7 +166,7 @@ func (c *Config) Save() error {
 		"dim_after=" + strconv.Itoa(c.DimAfter), "off_after=" + strconv.Itoa(c.OffAfter),
 		"sort=" + strconv.Itoa(c.Sort), "pinned=" + strings.Join(c.Pinned, ","),
 		"hidden=" + strings.Join(hidden, ","), "used=" + strings.Join(used, ","),
-		"last_ssh=" + c.LastSSH, "picto_addr=" + c.PictoAddr, "alarm_on=" + bit(c.AlarmOn),
+		"last_ssh=" + c.LastSSH, "picto_addr=" + c.PictoAddr, "picto_code=" + c.PictoCode, "alarm_on=" + bit(c.AlarmOn),
 		"alarm_h=" + strconv.Itoa(c.AlarmH), "alarm_m=" + strconv.Itoa(c.AlarmM),
 		"pin=" + c.PIN, "lock_on_wake=" + bit(c.LockOnWake),
 	}

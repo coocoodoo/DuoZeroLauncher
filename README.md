@@ -88,6 +88,14 @@ Send / Copy / Clear on the right. There is no on-screen keyboard: you type on th
 
 - **Find a chat:** PictoChat lists chats hosted on the same Wi-Fi (they announce themselves), or
   choose **Host a chat here** (four rooms of up to 16, port 47120), or **Join by address**.
+- **Chat over the internet with a code:** **Start an internet chat** makes a room code (like
+  `K7Q2M-9XDRT`) to share; friends pick **Join with a code**. It goes through a free public MQTT
+  broker (broker.emqx.io, then broker.hivemq.com, then test.mosquitto.org if one is down), over
+  TLS, so it works from any network, phone hotspots included. The broker never sees anything
+  readable: the code is stretched (PBKDF2, 100 000 rounds) into an AES-256-GCM key and an
+  anonymous topic, and every message, name and presence ping is encrypted with it; anyone
+  without the code sees noise. Free public brokers have no uptime promise. Pure Go, standard
+  library only (`mqtt.go`, `picto_mqtt.go`).
   It speaks the protocol of PictoChat Online (pict.chat), so it can also join a self-hosted
   [ayunpictojava](https://github.com/ayunami2000/ayunpictojava) server that has its captcha
   turned off; servers that want a captcha (pict.chat itself) can't be joined.

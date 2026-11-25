@@ -16,13 +16,11 @@ package main
 // Public servers that want a captcha token (pict.chat) can't be joined from here.
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"regexp"
 	"sort"
 	"strconv"
@@ -280,7 +278,6 @@ type pcPeer struct {
 
 // pcServer is a PictoChat host: four rooms of up to 16, the same protocol as PictoChat Online.
 type pcServer struct {
-	srv   *http.Server
 	ln    net.Listener
 	name  string
 	mu    sync.Mutex
@@ -298,8 +295,15 @@ func pcHost(addr, name string) (*pcServer, error) {
 	for _, r := range pcRooms {
 		s.rooms[r] = map[*pcPeer]bool{}
 	}
-	s.srv = &http.Server{Handler: http.HandlerFunc(s.serve), ReadHeaderTimeout: 10 * time.Second}
-	go s.srv.Serve(ln)
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return // closed
+			}
+			go s.serve(c)
+		}
+	}()
 	return s, nil
 }
 
@@ -308,9 +312,7 @@ func (s *pcServer) Port() int { return s.ln.Addr().(*net.TCPAddr).Port }
 func (s *pcServer) Close() {
 	s.once.Do(func() {
 		close(s.stop)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		s.srv.Shutdown(ctx)
+		s.ln.Close()
 		s.mu.Lock()
 		for _, room := range s.rooms {
 			for p := range room {
@@ -332,9 +334,10 @@ func (s *pcServer) People() []int {
 	return n
 }
 
-func (s *pcServer) serve(w http.ResponseWriter, r *http.Request) {
-	ws, err := wsUpgrade(w, r)
+func (s *pcServer) serve(c net.Conn) {
+	ws, err := wsServe(c)
 	if err != nil {
+		c.Close()
 		return
 	}
 	p := &pcPeer{ws: ws, out: make(chan string, 128)}

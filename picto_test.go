@@ -2,8 +2,7 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"net/http/httptest"
+	"net"
 	"strings"
 	"sync"
 	"testing"
@@ -11,23 +10,46 @@ import (
 )
 
 func TestWebSocketRoundTrip(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ws, err := wsUpgrade(w, r)
-		if err != nil {
-			return
-		}
-		defer ws.Close()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
 		for {
-			m, err := ws.Read()
+			c, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			ws.writeFrame(0x9, []byte("are you there")) // a ping the client must answer by itself
-			ws.WriteText("echo:" + m)
+			go func() {
+				ws, err := wsServe(c)
+				if err != nil {
+					c.Close()
+					return
+				}
+				defer ws.Close()
+				for {
+					m, err := ws.Read()
+					if err != nil {
+						return
+					}
+					ws.writeFrame(0x9, []byte("are you there")) // a ping the client must answer by itself
+					ws.WriteText("echo:" + m)
+				}
+			}()
 		}
-	}))
-	defer srv.Close()
-	u, err := wsURL(strings.TrimPrefix(srv.URL, "http://"), pcPort)
+	}()
+	// a plain HTTP request is refused politely
+	if c, err := net.Dial("tcp", ln.Addr().String()); err == nil {
+		fmt.Fprintf(c, "GET / HTTP/1.1\r\nHost: x\r\n\r\n")
+		b := make([]byte, 64)
+		n, _ := c.Read(b)
+		if !strings.Contains(string(b[:n]), "426") {
+			t.Errorf("plain HTTP got %q", b[:n])
+		}
+		c.Close()
+	}
+	u, err := wsURL(ln.Addr().String(), pcPort)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -379,10 +379,20 @@ func (c *pcCompose) copyFrom(m *pcMessage) {
 
 // ---- the chats list ----
 
+// pcLink is a way into a chat: a PictoChat server (pcClient) or an internet room code (pcNet).
+type pcLink interface {
+	Join(room string, me pcPlayer)
+	Say(m *pcMessage)
+	Leave()
+	Close()
+}
+
 type pcSession struct {
-	client *pcClient
+	client pcLink
 	host   *pcServer
 	hostIP string
+	code   string // internet chat: the room code to share
+	via    string // ... and the broker it goes through
 }
 
 func (a *App) pcMe() pcPlayer {
@@ -392,6 +402,7 @@ func (a *App) pcMe() pcPlayer {
 // pictoMenu lists chats found on this network, hosting one here, and joining by address.
 func pictoMenu(a *App) *RowList {
 	l := page("PICTOCHAT", artPicto)
+	l.Tag = "picto-menu"
 	var found []pcFound
 	stop := make(chan struct{})
 	if os.Getenv("DSL_PICTO_NOLAN") == "" {
@@ -413,7 +424,24 @@ func pictoMenu(a *App) *RowList {
 				Do: func(a *App, r *Row) { pcJoin(a, f.Addr, f.Name+"'s chat", nil) }})
 		}
 		l.Rows = append(l.Rows,
-			&Row{Label: "Host a chat here", Kind: rowAction, Value: "4 ROOMS", Do: func(a *App, r *Row) { pcStartHost(a) }},
+			&Row{Label: "Host a chat here", Kind: rowAction, Value: "THIS WI-FI", Do: func(a *App, r *Row) { pcStartHost(a) }},
+			&Row{Label: "Start an internet chat", Kind: rowAction, Value: "NEW CODE", Do: func(a *App, r *Row) { pcJoinCode(a, pcNewCode()) }},
+			&Row{Label: "Join with a code", Kind: rowLink, Do: func(a *App, r *Row) {
+				a.push(newInput("ROOM CODE", "The code your friend shared", "", 16, false, func(s string) {
+					if len(pcNormCode(s)) < 6 {
+						a.notify("Codes are 10 letters and digits", true)
+						return
+					}
+					pcJoinCode(a, s)
+				}))
+			}},
+		)
+		if a.cfg.PictoCode != "" {
+			code := a.cfg.PictoCode
+			l.Rows = append(l.Rows, &Row{Label: "Rejoin " + pcShowCode(code), Kind: rowAction, Value: "INTERNET",
+				Do: func(a *App, r *Row) { pcJoinCode(a, code) }})
+		}
+		l.Rows = append(l.Rows,
 			&Row{Label: "Join by address", Kind: rowLink, Value: a.cfg.PictoAddr, Do: func(a *App, r *Row) {
 				a.push(newInput("JOIN A CHAT", "Address of a PictoChat server (host:port)", a.cfg.PictoAddr, 60, false,
 					func(s string) {
@@ -430,7 +458,7 @@ func pictoMenu(a *App) *RowList {
 		)
 	}
 	l.Refresh(a, l)
-	l.Footer = "Chats hosted on this Wi-Fi show up here"
+	l.Footer = "Chats on this Wi-Fi show up here; codes work anywhere"
 	l.OnBack = func(a *App) { close(stop) }
 	return l
 }
@@ -452,21 +480,46 @@ func pcStartHost(a *App) {
 	pcJoin(a, fmt.Sprintf("127.0.0.1:%d", srv.Port()), me.Name+"'s chat", srv)
 }
 
-// pcJoin connects (with the loading squares while it does) and opens the rooms screen.
+// pcJoin connects to a PictoChat server (with the loading squares while it does) and opens the
+// rooms screen.
 func pcJoin(a *App, addr, label string, host *pcServer) {
 	v := &PictoView{label: label, addr: addr, me: a.pcMe(), compose: newCompose(), counts: make([]int, 4)}
 	if host != nil {
 		v.sess.host = host
 		v.sess.hostIP = primaryIP()
 	}
-	a.background("Connecting to "+label+"...", func() error {
+	pcOpen(a, v, label, func() error {
 		c, err := pcConnect(addr, v.me, func(ev pcEvent) { a.work <- func() { v.event(a, ev) } })
 		if err != nil {
 			return err
 		}
 		v.sess.client = c
 		return nil
-	}, func(err error) {
+	})
+}
+
+// pcJoinCode joins the internet chat for a room code (see picto_mqtt.go).
+func pcJoinCode(a *App, code string) {
+	code = pcShowCode(code)
+	v := &PictoView{label: "Code " + code, me: a.pcMe(), compose: newCompose(), counts: make([]int, 4)}
+	v.sess.code = code
+	pcOpen(a, v, "the internet chat", func() error {
+		n, err := pcConnectCode(code, v.me, func(ev pcEvent) { a.work <- func() { v.event(a, ev) } })
+		if err != nil {
+			return err
+		}
+		v.sess.client, v.sess.via = n, n.Broker
+		a.work <- func() {
+			a.cfg.PictoCode = pcNormCode(code)
+			a.save()
+		}
+		return nil
+	})
+}
+
+func pcOpen(a *App, v *PictoView, label string, connect func() error) {
+	host := v.sess.host
+	a.background("Connecting to "+label+"...", connect, func(err error) {
 		if err != nil {
 			if host != nil {
 				host.Close()
@@ -534,6 +587,14 @@ func (v *PictoView) close() {
 func (v *PictoView) leaveView(a *App) {
 	v.close()
 	a.dropView(v)
+	pcMenuRefresh(a)
+}
+
+// pcMenuRefresh updates the chats list under a closing chat (a new "Rejoin" row, say).
+func pcMenuRefresh(a *App) {
+	if l, ok := a.top().(*RowList); ok && l.Tag == "picto-menu" && l.Refresh != nil {
+		l.Refresh(a, l)
+	}
 }
 
 // event handles what the server said (on the UI thread).
@@ -582,6 +643,7 @@ func (v *PictoView) event(a *App, ev pcEvent) {
 		v.close()
 		if a.hasView(v) {
 			a.dropView(v)
+			pcMenuRefresh(a)
 			if ev.Text != "" {
 				alert(a, "DISCONNECTED", v.label+": "+ev.Text)
 			}
@@ -1008,6 +1070,9 @@ func (v *PictoView) drawRooms(a *App) {
 		g.textR(x+w-8, y+5, fmt.Sprintf("%d/%d", v.counts[i], pcRoomMax), cDark, 1, false)
 	}
 	info := v.label
+	if v.sess.code != "" {
+		info = "Code " + v.sess.code + " - share it - via " + v.sess.via
+	}
 	if v.sess.host != nil {
 		ip := v.sess.hostIP
 		if ip == "" {
