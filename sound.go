@@ -25,6 +25,7 @@ type voice struct {
 	name string
 	pcm  []int16
 	pos  int
+	loop bool // starts again at the end, with no gap, until Stop
 }
 
 type Sound struct {
@@ -99,6 +100,9 @@ func (s *Sound) mixer() {
 			for i := 0; i < block; i++ {
 				sum := 0.0
 				for _, v := range s.voices {
+					if v.loop && v.pos >= len(v.pcm) {
+						v.pos = 0
+					}
 					if v.pos < len(v.pcm) {
 						sum += float64(v.pcm[v.pos])
 						v.pos++
@@ -109,7 +113,7 @@ func (s *Sound) mixer() {
 			}
 			live := s.voices[:0]
 			for _, v := range s.voices {
-				if v.pos < len(v.pcm) {
+				if v.loop || v.pos < len(v.pcm) {
 					live = append(live, v)
 				}
 			}
@@ -182,14 +186,47 @@ func (s *Sound) Play(name string) {
 		}
 	}
 	s.voices = append(kept, &voice{name: name, pcm: pcm})
-	if len(s.voices) > 4 {
-		s.voices = s.voices[len(s.voices)-4:]
+	// at most 4 sounds at once: drop the oldest one-shot sounds (loops stay)
+	for n := len(s.voices); n > 4; n-- {
+		for i, v := range s.voices {
+			if !v.loop {
+				s.voices = append(s.voices[:i], s.voices[i+1:]...)
+				break
+			}
+		}
 	}
 	s.mu.Unlock()
+	s.kick()
+}
+
+func (s *Sound) kick() {
 	select {
 	case s.wake <- struct{}{}:
 	default:
 	}
+}
+
+// Loop plays an effect over and over with no gap until Stop, starting `from` (0..1) of the way
+// in (to line it up with an animation). While it plays, calling Loop again changes nothing.
+func (s *Sound) Loop(name string, from float64) {
+	if !s.On || s.Volume <= 0 {
+		return
+	}
+	pcm := s.samples(name)
+	if len(pcm) == 0 {
+		return
+	}
+	s.mu.Lock()
+	for _, v := range s.voices {
+		if v.name == name && v.loop {
+			s.mu.Unlock()
+			return
+		}
+	}
+	pos := int(math.Max(0, math.Min(0.999, from)) * float64(len(pcm)))
+	s.voices = append(s.voices, &voice{name: name, pcm: pcm, pos: pos, loop: true})
+	s.mu.Unlock()
+	s.kick()
 }
 
 // Stop cuts a playing effect off.

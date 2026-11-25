@@ -39,7 +39,7 @@ EVENTS = {
     "startup": "1-33. Startup",
     "startup-birthday": "1-34. Startup Birthday",
     "shutdown": "1-32. Shutdown",
-    "loading": "2-11. Seq",                     # one blip per turn of the loading squares
+    "loading": "2-11. Seq",                     # looped, no gaps, while the loading squares show
 }
 
 def load(path):
@@ -54,7 +54,25 @@ def load(path):
         a *= min(max(peak, 0.25), 0.6) / peak
     return np.clip(np.round(a), -32768, 32767).astype("<i2")
 
+LOADING_STEP = 0.5333 / 8  # one step of the yellow loading squares (ds.go loadingTurn / 8)
+
+def loading_loop(pcm):
+    """The DSi blip is two clicks ~71 ms apart. Make a gapless loop of them with each click
+    starting one loading-square step after the last (click, pause, click, pause), so looped it
+    ticks evenly, once per step of the squares."""
+    a = pcm.astype(np.float64)
+    loud = np.nonzero(np.abs(a) > 300)[0]
+    starts = [loud[0]] + [i for p, i in zip(loud, loud[1:]) if i - p > int(0.01 * RATE)]
+    assert len(starts) >= 2, "expected two clicks"
+    total = int(round(2 * LOADING_STEP * RATE))
+    first = total // 2
+    loop = np.concatenate([a[starts[0]:starts[0] + first], a[starts[1]:starts[1] + total - first]])
+    loop = np.pad(loop, (0, total - len(loop)))
+    return np.clip(np.round(loop), -32768, 32767).astype("<i2")
+
 for ev, name in EVENTS.items():
     pcm = load(os.path.join(src, name + ".flac"))
+    if ev == "loading":
+        pcm = loading_loop(pcm)
     open(os.path.join(out, ev + ".pcm"), "wb").write(pcm.tobytes())
     print(f"{ev:16s} <- {name:30s} {len(pcm)/RATE:5.2f}s")

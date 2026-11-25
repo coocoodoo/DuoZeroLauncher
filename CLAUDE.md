@@ -183,9 +183,12 @@ then reboot, or ask the user to restart it.
   FLACs converted by `tools/mksounds.py <folder> [ffmpeg]`; which plays when:
   assets/sounds/SOURCE.md). New events: increase/decrease (sliders and choices, `stepSound`),
   alarm-exit, startup-birthday (`App.startupSound`), shutdown (restart/turn off), loading.
-- Loading blip: `App.loadingBlip` (called from `draw` while the busy screen shows) plays
-  `loading` (DSi Internet Settings Seq #11, a 0.1 s blip) when the busy screen appears and once
-  per turn of the yellow squares (`loadingTurn`, the same 0.533 s cycle `dsLoading` uses).
+- Loading ticks: the DSi Internet Settings Seq #11 is two clicks ~71 ms apart. `mksounds.py`
+  (`loading_loop`) turns it into a 133 ms gapless loop, each click one step of the yellow
+  squares (`loadingTurn`/8) apart. `App.loadingSound` (from `draw`) starts it with
+  `Sound.Loop` in phase with `dsLoading` when the busy screen appears and `Sound.Stop`s it when
+  the squares go (job done, cancelled, or the screen turned off). Loop voices are never dropped
+  for one-shot sounds (`Play` keeps at most 4 of those).
 - The alarm loops the 14 s DS ring (`Sound.Length`) and stops it (`Sound.Stop`) with alarm-exit.
 
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

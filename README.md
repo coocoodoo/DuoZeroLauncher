@@ -7,8 +7,8 @@ the orange alert with the loading squares, the striped input field, PictoChat fr
 font and the clock-digit font. The left "upper screen" shows the square clock (Tab: the calendar),
 the right "touch screen" the apps. Sounds are the Nintendo DS system sounds (the "Nintendo DS
 System Sounds" gamerip on KHInsider; `tools/mksounds.py` converts its FLACs into `assets/sounds/`,
-see `assets/sounds/SOURCE.md` for which plays when), mixed so they can overlap. The yellow loading
-squares blip once per turn with the DSi's loading sound.
+see `assets/sounds/SOURCE.md` for which plays when), mixed so they can overlap. While the yellow
+loading squares show, the DSi's loading ticks loop with them, one tick per step.
 
 `tools/mkassets.py <ds.css-main/src/assets>` halves the textures to native pixels into `assets/`
 (embedded in the binary) and pre-renders the fonts into `fontdata.go`. The clock font is under the

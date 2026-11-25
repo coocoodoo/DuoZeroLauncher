@@ -12,6 +12,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,8 +86,7 @@ type App struct {
 	launch   *Entry // set while an app runs
 	vol      volState
 
-	loadingOn bool // the busy screen's loading squares were on screen last frame
-	loadingN  int  // which turn of them the last blip was for
+	loadingOn bool // the loading ticks are playing (the busy screen's squares are on screen)
 }
 
 func main() {
@@ -304,6 +304,9 @@ func (a *App) loop() {
 			a.draw()
 			frame = a.now
 		}
+		if a.dimLevel == 2 {
+			a.loadingSound(false) // screen off: the squares can't be seen
+		}
 		if a.sim && a.keys.(*simKeys).done() && a.busy() == "" {
 			return // scripted run over, once the last background job has finished
 		}
@@ -495,14 +498,12 @@ func (a *App) draw() {
 	if items := v.Bar(a); items != nil {
 		a.drawBar(items)
 	}
-	if msg := a.busy(); msg != "" {
+	msg := a.busy()
+	a.loadingSound(msg != "")
+	if msg != "" {
 		a.drawBusy(msg)
-		a.loadingBlip()
-	} else {
-		a.loadingOn = false
-		if time.Now().Before(a.toastTill) {
-			a.drawToast()
-		}
+	} else if time.Now().Before(a.toastTill) {
+		a.drawToast()
 	}
 	if time.Now().Before(a.vol.shownTill) {
 		a.drawVolume()
@@ -510,16 +511,22 @@ func (a *App) draw() {
 	a.scr.Show()
 }
 
-// loadingBlip plays the DS loading blip while the busy screen's yellow squares turn: as soon as
-// it appears, then once per turn (loadingTurn), in step with dsLoading (both run on a.t).
-func (a *App) loadingBlip() bool {
-	turn := int(a.t / loadingTurn)
-	blip := !a.loadingOn || turn != a.loadingN
-	if blip {
-		a.snd.Play("loading")
+// loadingSound runs the DSi loading ticks for exactly as long as the yellow loading squares are
+// on screen: the "loading" clip (two ticks, one square step apart) loops with no gaps, started
+// in step with dsLoading (both run on a.t), and stops when the squares go. Returns whether it
+// changed.
+func (a *App) loadingSound(showing bool) bool {
+	switch {
+	case showing && !a.loadingOn:
+		period := 2 * loadingTurn / 8 // the clip: two steps of the squares
+		a.snd.Loop("loading", math.Mod(a.t, period)/period)
+	case !showing && a.loadingOn:
+		a.snd.Stop("loading")
+	default:
+		return false
 	}
-	a.loadingOn, a.loadingN = true, turn
-	return blip
+	a.loadingOn = showing
+	return true
 }
 
 // startupSound is the DS start-up chime, or its birthday version on the user's birthday.
