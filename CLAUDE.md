@@ -172,5 +172,9 @@ then reboot, or ask the user to restart it.
   shown for `volShow` after the last press; Settings > Speaker's rows follow it. Scripted runs
   never touch the real volume. Other Fn keys the driver sends and Duo ignores: Fn+U/I
   brightness, Fn+Q/W/E media.
+- Fix: on 0.6.5 the strip's slide and rise were often skipped. The idle home screen redraws only
+  about once a second, so the first frame after a key press had a dt of up to 1 s and the
+  easing jumped to the end. `Home.frameDT` counts a gap over 0.1 s as one frame
+  (`home_test.go`). Scripted runs never showed it: they draw right before every key.
 
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

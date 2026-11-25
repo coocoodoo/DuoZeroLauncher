@@ -179,9 +179,22 @@ func (h *Home) Bar(a *App) []BarItem {
 		{"SETTINGS", artGear, false}, {"LOCK", artLock, false}}
 }
 
+// frameDT is how far the animations move this frame. While the home screen sits still it is
+// drawn only about once a second (for the clock), so a long gap since the last frame means it
+// was idle: count it as one frame. Otherwise the first frame after a key press, up to a second
+// after the last one, would jump the slide and the tile's rise straight to their end.
+func (h *Home) frameDT() float64 {
+	now := time.Now()
+	dt := now.Sub(h.last).Seconds()
+	h.last = now
+	if dt > 0.1 || dt < 0 {
+		dt = 1.0 / 30
+	}
+	return dt
+}
+
 func (h *Home) Draw(a *App) {
-	dt := time.Since(h.last).Seconds()
-	h.last = time.Now()
+	dt := h.frameDT()
 	h.slide *= math.Exp(-dt * 16)
 	if math.Abs(h.slide) < 0.02 {
 		h.slide = 0
