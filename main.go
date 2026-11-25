@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.6.7"
+const version = "0.7.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -653,6 +653,10 @@ func (a *App) open(e *Entry) {
 	case "calc":
 		a.snd.Play("select")
 		a.push(newCalc(a))
+		return
+	case "pictochat":
+		a.snd.Play("open")
+		a.push(pictoMenu(a))
 		return
 	case "cli":
 		a.runTerminal(e, "")

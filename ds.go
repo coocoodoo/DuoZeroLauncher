@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-//go:embed assets/*.png assets/icons/*.png assets/tiles/*.png
+//go:embed assets/*.png assets/icons/*.png assets/tiles/*.png assets/apps/*.png
 var assetFS embed.FS
 
 type Tex struct {

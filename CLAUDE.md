@@ -191,4 +191,22 @@ then reboot, or ask the user to restart it.
   for one-shot sounds (`Play` keeps at most 4 of those).
 - The alarm loops the 14 s DS ring (`Sound.Length`) and stops it (`Sound.Stop`) with alarm-exit.
 
+## Local changes (0.7.0)
+
+- PictoChat, built in (`builtin:pictochat`, icon `assets/apps/pictochat.png` loaded as
+  `embed:apps/pictochat.png`). `ws.go`: a small RFC 6455 WebSocket (client and server, stdlib
+  only, so the on-device self-update still needs no module downloads). `picto_net.go`: the
+  PictoChat Online JSON protocol (see its header comment), `pcClient`, `pcServer` (rooms A-D,
+  16 each, names cleaned, the sender stamped by the server, 400 ms rate limit, sizes bounded by
+  `pcClean`), and LAN discovery (`pcAnnounce` / `pcListen`, UDP 47121, "DUOPICTO1 <port> <name>").
+  The host listens on 47120. `picto.go`: the chats list (`pictoMenu`), the rooms screen and the
+  room (`PictoView`): log above (messages rendered once into `pcImage`), compose box 1:1 below
+  (`pcCompose`), tool and button columns; TYPE/DRAW modes via the optional `typing()` that
+  `syncText` now checks. Written from the protocol only: ayunpictojava has no licence, so none
+  of its code or images are used. pict.chat itself needs a captcha token, which Duo never sends.
+- Scripted runs: `DSL_PICTO_NOLAN=1` skips UDP discovery, `DSL_PICTO_ADDR=127.0.0.1:0` hosts on
+  localhost only, and the key `BOT` (in a room) has a second client "Rin" join and send a
+  drawing. Tests: `picto_test.go` (WebSocket round trip, two clients through the host, compose,
+  rendering).
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

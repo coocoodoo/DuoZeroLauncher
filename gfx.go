@@ -8,6 +8,7 @@ import (
 	"dslauncher/cp0"
 	"image"
 	"image/png"
+	"io"
 	"math"
 	"os"
 	"strings"
@@ -505,7 +506,13 @@ type Icon struct {
 
 // loadIcon reads a PNG and box-filters it to size x size.
 func loadIcon(path string, size int) *Icon {
-	f, err := os.Open(path)
+	var f io.ReadCloser
+	var err error
+	if name, ok := strings.CutPrefix(path, "embed:"); ok { // an icon built into Duo
+		f, err = assetFS.Open("assets/" + name)
+	} else {
+		f, err = os.Open(path)
+	}
 	if err != nil {
 		return nil
 	}

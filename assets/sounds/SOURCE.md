@@ -25,4 +25,7 @@ little-endian mono, 32 kHz), trimmed and levelled. Which DS sound plays for what
 | alarm / alarm-exit | 1-02 Alarm Ring / 1-01 Alarm Exit | the alarm (looped), stopping it |
 | startup / startup-birthday | 1-33 Startup / 1-34 Startup Birthday | start-up chime (on your birthday) |
 | shutdown | 1-32 Shutdown | restart and turn off |
+| pc-send / pc-clear | 1-20 Pictochat Send / 1-14 Pictochat Clear | PictoChat: sending, clearing the box |
+| pc-enter / pc-leave | 1-15 / 1-17 Pictochat Enterroom / Leaveroom | PictoChat: someone comes in or leaves |
+| pc-receive | 1-21 Pictochat Something0 | PictoChat: a message arrives (a guess; the album doesn't say what it is) |
 | loading | 2-11 Seq | its two clicks made into a gapless 133 ms loop (one click per step of the yellow loading squares), looped while they show |

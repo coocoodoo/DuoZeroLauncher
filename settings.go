@@ -973,6 +973,8 @@ func licencesPage() *RowList {
 		"Clock digits: Nintendo DS - Clock Numbers",
 		"  Font (c) 2026 zigaudrey, FontStruct",
 		"  Non-Commercial License: personal use only.",
+		"PictoChat: Duo's own code, speaking the",
+		"  PictoChat Online protocol (ayunpictojava).",
 		"Sounds: Nintendo DS system sounds",
 		"  (gamerip, KHInsider / The Sounds",
 		"  Resource); (c) Nintendo.",

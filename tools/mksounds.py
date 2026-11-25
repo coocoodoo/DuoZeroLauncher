@@ -40,6 +40,12 @@ EVENTS = {
     "startup-birthday": "1-34. Startup Birthday",
     "shutdown": "1-32. Shutdown",
     "loading": "2-11. Seq",                     # looped, no gaps, while the loading squares show
+    # PictoChat
+    "pc-send": "1-20. Pictochat Send",
+    "pc-receive": "1-21. Pictochat Something0", # a guess: the album doesn't name it
+    "pc-enter": "1-15. Pictochat Enterroom",
+    "pc-leave": "1-17. Pictochat Leaveroom",
+    "pc-clear": "1-14. Pictochat Clear",
 }
 
 def load(path):

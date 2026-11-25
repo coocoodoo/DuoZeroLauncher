@@ -18,6 +18,9 @@ type TextView interface{ wantsText() }
 
 func (a *App) syncText() {
 	_, ok := a.top().(TextView)
+	if t, can := a.top().(interface{ typing() bool }); can { // views that type only sometimes
+		ok = t.typing()
+	}
 	a.keys.setTextMode(ok)
 }
 

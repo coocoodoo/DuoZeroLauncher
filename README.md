@@ -23,11 +23,12 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
 ## What it does
 
 - **Home:** every app the system launcher lists (its `.desktop` folder), plus built-ins: Store,
-  CLI, Python, SSH, IP Panel, Calculator, Settings. Arrows move (Up/Down jump 5), keys 4–8:
+  CLI, Python, SSH, IP Panel, Calculator, PictoChat, Settings. Arrows move (Up/Down jump 5), keys 4–8:
   OPEN, FAVE (pin to the front), INFO (details, hide, uninstall), SETTINGS, LOCK. Tab shows the
   calendar; hold Tab anywhere to lock and turn the screen off (sleep). Leave via Settings > Launcher.
   The chosen app's tile eases up out of the strip in your favourite colour with a soft shadow
   around it, and the one you scrolled away from eases back down.
+- **PictoChat, built in:** draw and type messages to other Cardputers. See [PictoChat](#pictochat).
 - **Volume keys everywhere in Duo:** Fn+S quieter, Fn+D louder (and unmute), Fn+A mute, in 5%
   steps (hold to keep going). A volume meter shows the level for a moment; it works on the lock
   screen too and wakes a dimmed screen.
@@ -76,6 +77,30 @@ Duo works out what kind of app it is and only does what is safe for that kind:
   loss) is repaired the next time the bin is opened; a failed step is rolled back.
 - Favourite pins come back with the app. Files the app keeps elsewhere (like `~/Notes`) are not
   touched.
+
+## PictoChat
+
+![PictoChat](docs/pictochat.png)
+
+A chat with drawings, laid out like the handheld's: messages above, your box below at its real
+size (232 x 83, ruled lines, your name tag in your favourite colour), tools on the left and
+Send / Copy / Clear on the right. There is no on-screen keyboard: you type on the Cardputer's.
+
+- **Find a chat:** PictoChat lists chats hosted on the same Wi-Fi (they announce themselves), or
+  choose **Host a chat here** (four rooms of up to 16, port 47120), or **Join by address**.
+  It speaks the protocol of PictoChat Online (pict.chat), so it can also join a self-hosted
+  [ayunpictojava](https://github.com/ayunami2000/ayunpictojava) server that has its captcha
+  turned off; servers that want a captcha (pict.chat itself) can't be joined.
+- **In a room**, Tab switches TYPE and DRAW:
+  - TYPE: keys type into the lines (they wrap), Backspace erases, Left/Right pick a line,
+    Up/Down scroll the messages.
+  - DRAW: arrows (or F X Z C) move the pen, Space puts it down or lifts it, P pen, E eraser,
+    B thick/thin, W/S scroll, Backspace undoes the last stroke.
+  - Both: Enter sends, Del clears, Ctrl+R (R in DRAW) copies the message at the bottom of the
+    view into your box, Esc leaves the room.
+
+The network code (`ws.go`, `picto_net.go`) and the screens (`picto.go`) are Duo's own, written
+from the protocol; no code or pictures come from ayunpictojava.
 
 ## Build and install
 
