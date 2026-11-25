@@ -1,0 +1,28 @@
+Duo Launcher - install on the Cardputer Zero
+=============================================
+
+1. Copy duo-launcher-install.zip to the Cardputer, for example with File Drop
+   (the File Drop app, then upload from a browser on the same Wi-Fi), over SSH/scp,
+   or over USB with adb push.
+
+2. On the Cardputer (Tiny Terminal, CLI, or SSH), unpack and run the installer:
+
+     cd ~
+     unzip -o duo-launcher-install.zip
+     sh duo-launcher/install.sh
+
+   If unzip is missing:  python3 -m zipfile -e duo-launcher-install.zip .
+
+3. Open "Duo Launcher" from the launcher.
+
+Using an AI agent on the Cardputer (ZeroCode, or one connected over SSH/ADB)? Give it
+duo-launcher/AGENT-INSTALL.md: it has the checks, install, a test that does not touch the
+screen, the safety rules for this device, rollback, and a report template.
+
+Updating: run the same steps with a newer zip. The previous build is kept as
+~/apps/duo-launcher/app.prev; to go back:  cp ~/apps/duo-launcher/app.prev ~/apps/duo-launcher/app
+
+Keys on the home screen: arrows move, Tab shows the calendar, 4 Open, 5 Fave,
+6 Info, 7 Settings, 8 Lock. Hold Tab anywhere in Duo to lock and turn the screen off
+(sleep); any key wakes it to the lock screen. To leave Duo: Settings > Launcher >
+"Back to the system launcher".

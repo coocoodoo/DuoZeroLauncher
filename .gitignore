@@ -1,0 +1,13 @@
+# build output and installed binaries
+dist/
+app
+app.new
+app.prev
+ds-launcher
+*.wav
+
+# scripted-test output
+shots/
+fb.raw
+test-config
+cache/
