@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.7.3"
+const version = "0.7.4"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -87,6 +87,7 @@ type App struct {
 	vol      volState
 
 	loadingOn bool // the loading ticks are playing (the busy screen's squares are on screen)
+	blanked   bool // the panel is powered down (screenOff)
 }
 
 func main() {
@@ -349,12 +350,15 @@ func (a *App) handle(k cp0.Key) {
 	if k.Released {
 		return
 	}
-	if isVolumeKey(k) { // Fn+S / Fn+D / Fn+A: on every screen, and they wake it to show the level
-		if a.dimLevel > 0 {
+	if isVolumeKey(k) { // Fn+S / Fn+D / Fn+A: on every screen; a dimmed one wakes to show the level
+		if a.dimLevel == 1 {
 			a.wake()
 		}
-		a.volumeKey(k)
+		a.volumeKey(k) // with the screen off the volume changes without waking it, like a phone
 		return
+	}
+	if a.dimLevel == 2 && k.Name != "TAB" {
+		return // the screen is off: only Tab turns it back on (it is the power button)
 	}
 	if a.dimLevel > 0 {
 		// any key wakes the screen and is used up doing so
@@ -368,10 +372,10 @@ func (a *App) handle(k cp0.Key) {
 func (a *App) sleepNow() {
 	if _, locked := a.top().(*Lock); !locked {
 		for {
-			if _, ok := a.top().(TextView); !ok {
+			if _, ok := a.top().(*Input); !ok {
 				break
 			}
-			a.pop() // leave a half-typed field rather than lock on top of it
+			a.pop() // close a half-typed box (a password, say) rather than lock on top of it
 		}
 		a.push(newLock(a))
 	} else {
@@ -387,8 +391,27 @@ func (a *App) sleepNow() {
 			a.savedLight = cur
 		}
 	}
+	a.screenOff()
+}
+
+// screenOff turns the display completely off, like a phone's power button: the backlight to 0,
+// then the panel powered down (FBIOBLANK; a driver that can't do that keeps just the backlight
+// off). The corner repair pauses so nothing wakes every 8 ms. Only Tab turns it back on.
+func (a *App) screenOff() {
 	setBacklight(0)
+	a.scr.GuardCorner(false)
+	a.blanked = a.scr.Blank(true)
 	a.dimLevel = 2
+	a.loadingSound(false)
+}
+
+// screenOn powers the panel back up (the brightness is restored by wake).
+func (a *App) screenOn() {
+	if a.blanked {
+		a.scr.Blank(false)
+		a.blanked = false
+	}
+	a.scr.GuardCorner(true)
 }
 
 func (a *App) dispatch(k cp0.Key) {
@@ -452,16 +475,18 @@ func (a *App) idle() {
 		a.dimLevel = 1
 	case a.dimLevel == 1 && a.cfg.OffAfter > 0 &&
 		quiet > time.Duration(a.cfg.DimAfter+a.cfg.OffAfter)*time.Second:
-		setBacklight(0)
-		a.dimLevel = 2
+		a.screenOff()
 	}
 }
 
 func (a *App) wake() {
+	off := a.dimLevel == 2
+	if off {
+		a.screenOn()
+	}
 	if a.savedLight > 0 {
 		setBacklight(a.savedLight)
 	}
-	off := a.dimLevel == 2
 	a.dimLevel = 0
 	if off && a.cfg.LockOnWake {
 		if _, locked := a.top().(*Lock); !locked {
@@ -841,6 +866,10 @@ func (a *App) launchFromHome(h *Home, e *Entry) {
 }
 
 func (a *App) shutdown() {
+	if a.blanked { // never leave whatever runs next with the panel powered down
+		a.scr.Blank(false)
+		a.blanked = false
+	}
 	if a.dimLevel > 0 && a.savedLight > 0 {
 		setBacklight(a.savedLight)
 	}

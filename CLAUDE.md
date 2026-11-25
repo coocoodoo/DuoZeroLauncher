@@ -231,4 +231,16 @@ then reboot, or ask the user to restart it.
   up nearest-neighbour, so it stays crisp) and the title-bar mask `assets/tiles/pictochat.png`
   (mapped to `artPicto` in `tileIcons`). Change the grid there and rerun it.
 
+## Local changes (0.7.4)
+
+- Screen off like a phone: `App.screenOff` (hold Tab via `sleepNow`, and the idle timeout) sets
+  the backlight to 0, pauses the corner guard and powers the panel down with FBIOBLANK
+  (`cp0.Screen.Blank`, cp0/blank_linux.go; a no-op elsewhere; if the driver refuses, only the
+  backlight is off as before). While `dimLevel == 2` only Tab wakes it (`handle`); volume keys
+  change the volume without waking. `wake` -> `screenOn` unblanks first; `shutdown` always
+  unblanks so the next program (stock launcher, restarted Duo) gets a working panel.
+  `sleep_test.go` drives it through `handle`.
+- Locking closes only `*Input` boxes (a half-typed password) now, not every typing screen: the
+  Calculator and PictoChat are still there after unlocking.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).
