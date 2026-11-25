@@ -404,15 +404,7 @@ func (a *App) handle(k cp0.Key) {
 
 // sleepNow locks Duo and turns the screen off; any key wakes it to the lock screen.
 func (a *App) sleepNow() {
-	if _, locked := a.top().(*Lock); !locked {
-		for {
-			if _, ok := a.top().(*Input); !ok {
-				break
-			}
-			a.pop() // close a half-typed box (a password, say) rather than lock on top of it
-		}
-		a.push(newLock(a))
-	} else {
+	if !a.lock() {
 		a.snd.Play("lock")
 	}
 	a.draw()
@@ -426,6 +418,36 @@ func (a *App) sleepNow() {
 		}
 	}
 	a.screenOff()
+}
+
+// lock shows the lock screen and says whether it did. A half-typed box on top (the PIN, a
+// password) is closed first. If Duo is already locked somewhere down the stack (the PIN box, a
+// low-battery alert or the alarm can sit over the lock screen) it adds nothing: checking only
+// the top used to stack a new lock screen on every timeout or Tab hold, and each one asked for
+// the PIN again.
+func (a *App) lock() bool {
+	for len(a.stack) > 1 {
+		if _, ok := a.top().(*Input); !ok {
+			break
+		}
+		a.pop()
+	}
+	if a.lockIndex() >= 0 {
+		a.dirty = true
+		return false
+	}
+	a.push(newLock(a))
+	return true
+}
+
+// lockIndex is where the lock screen is in the stack (-1: not locked).
+func (a *App) lockIndex() int {
+	for i := len(a.stack) - 1; i >= 0; i-- {
+		if _, ok := a.stack[i].(*Lock); ok {
+			return i
+		}
+	}
+	return -1
 }
 
 // panelPowerOff says whether the panel may be powered down (FBIOBLANK) when the screen goes off.
@@ -550,9 +572,7 @@ func (a *App) wake() {
 	}
 	a.dimLevel = 0
 	if off && a.cfg.LockOnWake {
-		if _, locked := a.top().(*Lock); !locked {
-			a.push(newLock(a))
-		}
+		a.lock()
 	}
 	a.dirty = true
 }

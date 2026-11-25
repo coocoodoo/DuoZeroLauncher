@@ -52,3 +52,69 @@ func TestScreenOffLikeAPhone(t *testing.T) {
 		t.Fatal("a second Tab should unlock")
 	}
 }
+
+// The PIN is asked once, however many times the screen timed out or Tab was held while the PIN
+// box (or an alert) was over the lock screen: a second lock screen used to stack on each.
+func TestLockNeverStacks(t *testing.T) {
+	scr := &cp0.Screen{Px: make([]uint16, W*H)}
+	a := &App{cfg: defaultConfig(), snd: &Sound{cache: map[string][]int16{}}, scr: scr, keys: newSimKeys(""),
+		status: &Status{Battery: -1}, work: make(chan func(), 16), start: time.Now(), progress: -1}
+	a.g = newG(scr)
+	a.stack = []View{&Home{last: time.Now()}}
+	a.cfg.PIN, a.cfg.LockOnWake = "1234", true
+	locks := func() int {
+		n := 0
+		for _, v := range a.stack {
+			if _, ok := v.(*Lock); ok {
+				n++
+			}
+		}
+		return n
+	}
+	tap := func() {
+		a.handle(cp0.Key{Code: 15, Name: "TAB"})
+		a.handle(cp0.Key{Code: 15, Name: "TAB", Released: true, Held: 0.1})
+	}
+	hold := func() {
+		a.handle(cp0.Key{Code: 15, Name: "TAB"})
+		a.handle(cp0.Key{Code: 15, Name: "TAB", Repeat: true, Held: cp0.TabHold.Seconds()})
+		a.handle(cp0.Key{Code: 15, Name: "TAB", Released: true, Held: 1.2})
+	}
+
+	hold() // lock, screen off
+	for i := 0; i < 3; i++ {
+		tap() // wake to the lock screen
+		tap() // the PIN box
+		if _, ok := a.top().(*Input); !ok {
+			t.Fatalf("round %d: Tab on the lock screen should ask for the PIN, top is %T", i, a.top())
+		}
+		a.handle(cp0.Key{Ch: '1'})
+		if i%2 == 0 {
+			a.screenOff() // the timeout, with the PIN half typed
+		} else {
+			hold()
+		}
+		if n := locks(); n != 1 {
+			t.Fatalf("round %d: %d lock screens", i, n)
+		}
+	}
+	tap() // wake
+	a.push(&BatteryAlert{pct: 12, at: time.Now()})
+	a.screenOff()
+	tap()
+	if n := locks(); n != 1 {
+		t.Fatalf("an alert over the lock screen: %d lock screens after waking", n)
+	}
+	a.handle(cp0.Key{Name: "ENTER"}) // dismiss the alert
+	tap()                            // the PIN box
+	for _, c := range "1234" {
+		a.handle(cp0.Key{Ch: c})
+	}
+	a.handle(cp0.Key{Name: "ENTER"})
+	if n := locks(); n != 0 {
+		t.Fatalf("one PIN should unlock; %d lock screens left (top %T)", n, a.top())
+	}
+	if _, ok := a.top().(*Home); !ok {
+		t.Fatalf("unlocked to %T, want the home screen", a.top())
+	}
+}

@@ -139,7 +139,7 @@ func screenPage(a *App) View {
 			Do: func(a *App, r *Row) { a.cfg.OffAfter = offVals[r.Choice]; a.save() }},
 		&Row{Label: "Lock when it wakes", Kind: rowToggle, On: a.cfg.LockOnWake,
 			Do: func(a *App, r *Row) { a.cfg.LockOnWake = r.On; a.save() }},
-		&Row{Label: "Lock now", Kind: rowAction, Do: func(a *App, r *Row) { a.push(newLock(a)) }},
+		&Row{Label: "Lock now", Kind: rowAction, Do: func(a *App, r *Row) { a.lock() }},
 	)
 }
 

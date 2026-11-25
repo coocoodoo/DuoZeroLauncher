@@ -327,6 +327,11 @@ then reboot, or ask the user to restart it.
   `~/.cache/dslauncher/doctor.log` (check results and ok/fail only, no secrets, capped ~200 KB).
 - `.gitattributes` keeps every file LF: the embedded device files must match the installed ones
   byte for byte.
+- Fix: the PIN was asked several times after locking. `sleepNow` (hold Tab) and `wake` (lock on
+  wake, after the timeout) only checked whether the *top* view was the `Lock`, so with the PIN box,
+  a low-battery alert or the alarm over it they stacked another lock screen each time. All locking
+  now goes through `App.lock()`: it closes a half-typed box on top and adds a lock screen only
+  when none is in the stack (`lockIndex`). `TestLockNeverStacks` (sleep_test.go).
 
 ## Local changes (0.7.10)
 

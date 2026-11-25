@@ -226,7 +226,7 @@ func (h *Home) Key(a *App, k cp0.Key) {
 		a.snd.Play("open")
 		a.push(newSettings(a))
 	case k.Slot() == 4:
-		a.push(newLock(a))
+		a.lock()
 	}
 }
 
