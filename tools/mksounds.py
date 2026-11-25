@@ -62,26 +62,27 @@ def load(path):
 
 LOADING_TURN = 0.5333          # one turn of the yellow loading squares (ds.go loadingTurn)
 LOADING_STEP = LOADING_TURN / 8  # one step of them
-LOADING_PAUSE = 0.5             # silence after each pair of swells
+LOADING_SWELL = 4               # ticks (steps) per swell: half a turn
+LOADING_PAUSE = 0.25            # silence after each pair of swells
 
 def loading_loop(pcm):
     """The DSi blip is two clicks ~71 ms apart. The loop ticks once per loading-square step
     (the two clicks taking turns), its volume swelling from nothing to full and back like a
-    sine, the way the DS does: two swells of one turn each, then half a second of silence, and
-    round again. The ticks sit half a step into each slot, so the loudest are in the middle and
-    none falls on the silent ends of a swell."""
+    sine, the way the DS does: two swells of four ticks (half a turn) each, then a quarter
+    second of silence, and round again. The ticks sit half a step into each slot, so the
+    loudest are in the middle and none falls on the silent ends of a swell."""
     a = pcm.astype(np.float64)
     loud = np.nonzero(np.abs(a) > 300)[0]
     starts = [loud[0]] + [i for p, i in zip(loud, loud[1:]) if i - p > int(0.01 * RATE)]
     assert len(starts) >= 2, "expected two clicks"
     clicks = [a[s:s + int(LOADING_STEP * RATE)] for s in starts[:2]]
-    turn = int(round(LOADING_TURN * RATE))
-    swell = np.zeros(turn)
-    for k in range(8):  # eight ticks per turn, half a step in
+    n = int(round(LOADING_SWELL * LOADING_STEP * RATE))
+    swell = np.zeros(n)
+    for k in range(LOADING_SWELL):  # one tick per step, half a step in
         at = int(round((k + 0.5) * LOADING_STEP * RATE))
-        c = clicks[k % 2][: turn - at]
+        c = clicks[k % 2][: n - at]
         swell[at:at + len(c)] += c
-    swell *= np.sin(np.pi * np.arange(turn) / turn)  # 0 -> full -> 0
+    swell *= np.sin(np.pi * np.arange(n) / n)  # 0 -> full -> 0
     loop = np.concatenate([swell, swell, np.zeros(int(round(LOADING_PAUSE * RATE)))])
     return np.clip(np.round(loop), -32768, 32767).astype("<i2")
 

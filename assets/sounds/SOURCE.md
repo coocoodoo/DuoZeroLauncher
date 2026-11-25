@@ -28,4 +28,4 @@ little-endian mono, 32 kHz), trimmed and levelled. Which DS sound plays for what
 | pc-send / pc-clear | 1-20 Pictochat Send / 1-14 Pictochat Clear | PictoChat: sending, clearing the box |
 | pc-enter / pc-leave | 1-15 / 1-17 Pictochat Enterroom / Leaveroom | PictoChat: someone comes in or leaves |
 | pc-receive | 1-21 Pictochat Something0 | PictoChat: a message arrives (a guess; the album doesn't say what it is) |
-| loading | 2-11 Seq | its two clicks tick once per step of the yellow loading squares, swelling from silence to full and back like a sine over one turn of the squares, twice, then 0.5 s of silence; looped while the squares show |
+| loading | 2-11 Seq | its two clicks tick once per step of the yellow loading squares, swelling from silence to full and back like a sine over half a turn of the squares (four ticks), twice, then 0.25 s of silence; looped while the squares show |

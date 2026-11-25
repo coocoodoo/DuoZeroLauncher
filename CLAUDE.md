@@ -283,6 +283,12 @@ then reboot, or ask the user to restart it.
 - `Sound.stopLocked` waits for pacat (300 ms, then kills): a self-update's in-place restart used
   to leave it a zombie; `reapOrphans` collects old ones at start-up.
 
+## Local changes (0.7.9)
+
+- Loading ticks: each swell is now four ticks (half a turn, `LOADING_SWELL`) and the pause
+  `LOADING_PAUSE` 0.25 s, so the loop is 0.783 s. The user tried swells twice as fast again
+  (ticks every half step) and rejected them; this is the speed they kept.
+
 ## Local changes (0.7.8)
 
 - Loading ticks, like the DS: `mksounds.py` `loading_loop` builds a 1.567 s pattern: a swell of
