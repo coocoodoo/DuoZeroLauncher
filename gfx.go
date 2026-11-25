@@ -143,6 +143,39 @@ func (g *G) rect(x, y, w, h int, c RGB) {
 	}
 }
 
+// softShadow darkens a blurred rectangle (a box blur of radius r over x,y,w,h) with dithering,
+// so it fades out smoothly: the shadow a raised tile casts.
+func (g *G) softShadow(x, y, w, h int, r, alpha float64, c RGB) {
+	if alpha <= 0 {
+		return
+	}
+	r = math.Max(r, 0.5)
+	cov := func(p, lo, hi float64) float64 {
+		v := (math.Min(p+r, hi) - math.Max(p-r, lo)) / (2 * r)
+		v = math.Max(0, math.Min(1, v))
+		return v * v * (3 - 2*v)
+	}
+	ext := int(math.Ceil(r)) + 1
+	for py := y - ext; py < y+h+ext; py++ {
+		cy := cov(float64(py)+0.5, float64(y), float64(y+h))
+		if cy <= 0 {
+			continue
+		}
+		for px := x - ext; px < x+w+ext; px++ {
+			a := alpha * cy * cov(float64(px)+0.5, float64(x), float64(x+w))
+			if a > 0.004 && g.in(px, py) {
+				g.pxSmooth(px, py, mix(g.get(px, py), c, a))
+			}
+		}
+	}
+}
+
+// smoothstep eases 0..1 in and out.
+func smoothstep(t float64) float64 {
+	t = math.Max(0, math.Min(1, t))
+	return t * t * (3 - 2*t)
+}
+
 func (g *G) shade(x, y, w, h int, c RGB, a float64) {
 	r := image.Rect(x, y, x+w, y+h).Intersect(g.clip)
 	for yy := r.Min.Y; yy < r.Max.Y; yy++ {

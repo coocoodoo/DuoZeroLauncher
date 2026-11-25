@@ -24,11 +24,14 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   CLI, Python, SSH, IP Panel, Calculator, Settings. Arrows move (Up/Down jump 5), keys 4–8:
   OPEN, FAVE (pin to the front), INFO (details, hide, uninstall), SETTINGS, LOCK. Tab shows the
   calendar; hold Tab anywhere to lock and turn the screen off (sleep). Leave via Settings > Launcher.
+  The chosen app's tile eases up out of the strip in your favourite colour with a soft shadow
+  around it, and the one you scrolled away from eases back down.
+- **Launching:** the chosen tile rises while everything else fades to white and the app's name
+  fades in under it; then the app gets the screen and keyboard, and gives them back when it exits.
+  CLI, Python and SSH open in Tiny Terminal (through a `$SHELL` wrapper).
 - **Uninstalling apps,** with an undo: INFO > UNINSTALL, or Settings > Launcher > Uninstall apps
   (hidden apps too). Uninstalled apps wait in Settings > Launcher > Removed apps until you put
   them back or delete them for good. See [Uninstalling apps](#uninstalling-apps).
-- **Launching:** hands the screen and keyboard to the app and takes them back when it exits.
-  CLI, Python and SSH open in Tiny Terminal (through a `$SHELL` wrapper).
 - **Settings:** Screen (brightness, dim/off timers, lock on wake), Speaker (volume, mute, menu
   sounds), Wi-Fi (on/off, scan and join, hidden networks, saved networks), Ethernet, Bluetooth
   (power, visibility, name, paired devices, pairing), Ports (Ext/Grove 5V), Battery, Launcher (sort,
@@ -89,7 +92,9 @@ DSL_SIM="w3,RIGHT,6,ESC,7,ENTER,ESC,OPEN:builtin:calc,ch:2,ch:+,ch:2,ENTER" ./ds
 
 Steps: key names (`RIGHT`, `ENTER`, `ESC`, `TAB`, `BACKSPACE`...), `4`–`8` for the key bar,
 `ch:x` to type, `wN` to wait N tenths of a second, `OPEN:<entry key>` to open an entry,
-`INFO:<entry key>` for its details. A run ends after its last step once background work is done;
+`INFO:<entry key>` for its details; end a step with `~` (`RIGHT~`) to save 10 frames of its
+animation, 40 ms apart, instead of only the end. Opening an app saves the launch animation as
+`launch-25` ... `launch-100`. A run ends after its last step once background work is done;
 `DSL_DATA=<dir>` keeps the bin of removed apps out of your real one.
 `ds-launcher --sounds out.wav` renders every sound effect to a WAV file.
 

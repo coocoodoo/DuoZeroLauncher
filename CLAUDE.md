@@ -145,4 +145,20 @@ then reboot, or ask the user to restart it.
   background job. Tests: `remove_test.go`; `DSL_APT_COMPARE="pkg ..."` (on the device) checks
   `dependents` against `apt-get -s`.
 
+## Local changes (0.6.5)
+
+- Home strip (home.go): `Home.lift` holds each app's 0..1 "standing up", eased every frame
+  (`ease`, rate 12/s) towards 1 for the chosen app and 0 for the rest; `Animating` keeps frames
+  coming until they settle. `drawTile` raises a tile `tileRise` (6) px by `smoothstep(lift)`,
+  fades its colour from grey to the favourite colour and casts `softShadow` (gfx.go: a dithered
+  box-blurred rectangle) around it. Tiles are drawn lowest lift first. The strip moved down 3 px
+  (`sy = iy+55`) to make room.
+- Launch (`App.launchFromHome`, `Home.drawLaunch`): when an app opens from the home screen the
+  tile rises `launchRise` (24) px more over `launchDur` (0.45 s) while a white wash covers
+  everything, its shadow spreading and fading on the paper, and the name fades in under it; then
+  the app starts (the launch sound's 450 ms overlap the animation). Opened from elsewhere, the
+  old white wash and "Starting..." box remain.
+- Scripted runs: a step ending in `~` films 10 frames (`App.film`); launches save
+  `launch-25..100` (`saveShot`).
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

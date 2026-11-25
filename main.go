@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "0.6.4"
+const version = "0.6.5"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -286,6 +286,10 @@ func (a *App) loop() {
 				return
 			}
 			if a.sim {
+				if a.keys.(*simKeys).film {
+					a.film(k)
+					continue
+				}
 				a.settle()
 				a.shot(k)
 			}
@@ -659,13 +663,16 @@ func (a *App) runApp(e *Entry, argv []string, env []string) {
 		return
 	}
 	a.snd.Play("launch")
+	soundAt := time.Now()
 	a.cfg.markUsed(e.Key)
 	a.save()
 	a.drawLaunching(e)
 	if a.sim {
 		return
 	}
-	time.Sleep(450 * time.Millisecond) // let the sparkle finish
+	if left := 450*time.Millisecond - time.Since(soundAt); left > 0 {
+		time.Sleep(left) // let the launch sound finish
+	}
 	a.snd.Close()
 	home, _ := os.UserHomeDir()
 	cmd := exec.Command(argv[0], argv[1:]...)
@@ -699,7 +706,14 @@ func (a *App) runApp(e *Entry, argv []string, env []string) {
 	a.dirty = true
 }
 
+// drawLaunching plays the open animation before an app takes the screen: from the home screen
+// the chosen tile rises while everything else fades to white (Home.drawLaunch); anywhere else
+// the screen washes white and a "Starting..." box shows.
 func (a *App) drawLaunching(e *Entry) {
+	if h, ok := a.top().(*Home); ok && h.cur(a) == e {
+		a.launchFromHome(h, e)
+		return
+	}
 	g := a.g
 	for i := 0; i < 6; i++ {
 		g.shade(0, 0, W, H, cWhite, 0.25)
@@ -720,6 +734,37 @@ func (a *App) drawLaunching(e *Entry) {
 	g.text(x+54, y+25, "Starting...", cWhite, 1, false)
 	g.dsLoading(x+w-20, y+24, a.t)
 	a.scr.Show()
+}
+
+func (a *App) launchFromHome(h *Home, e *Entry) {
+	from := smoothstep(h.lift[e.Key]) * tileRise // where the tile stands now
+	frame := func(p float64) {
+		h.launching = true
+		a.g.noClip()
+		h.Draw(a)
+		a.g.noClip()
+		a.drawBar(h.Bar(a))
+		h.drawLaunch(a, e, from, p)
+		h.launching = false
+		a.scr.Show()
+	}
+	if a.sim { // fixed steps, saved as screenshots
+		for _, p := range []float64{0.25, 0.5, 0.75, 1} {
+			frame(p)
+			a.saveShot(fmt.Sprintf("launch-%d", int(p*100)))
+		}
+		return
+	}
+	start := time.Now()
+	for {
+		p := time.Since(start).Seconds() / launchDur
+		if p >= 1 {
+			frame(1)
+			return
+		}
+		frame(p)
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func (a *App) shutdown() {
@@ -761,6 +806,7 @@ type simKeys struct {
 	steps []string
 	i     int
 	text  bool
+	film  bool // the step ended in "~": film its animation instead of waiting for the end
 }
 
 func newSimKeys(s string) *simKeys { return &simKeys{steps: strings.Split(s, ",")} }
@@ -779,6 +825,7 @@ func (s *simKeys) Poll(ms int) []cp0.Key {
 	}
 	step := strings.TrimSpace(s.steps[s.i])
 	s.i++
+	step, s.film = strings.CutSuffix(step, "~")
 	switch {
 	case step == "":
 		return nil
@@ -845,6 +892,30 @@ func (a *App) shot(k cp0.Key) {
 		if k.Ch != 0 {
 			name = "ch"
 		}
+	}
+	a.saveShot(name)
+}
+
+// film saves a frame every 40 ms for 400 ms after a scripted key whose step ends in "~", to
+// check an animation's motion and not only where it ends.
+func (a *App) film(k cp0.Key) {
+	name := k.Name
+	if name == "" {
+		name = fmt.Sprintf("k%d", k.Code)
+	}
+	for i := 0; i < 10; i++ {
+		a.now = time.Now()
+		a.t = a.now.Sub(a.start).Seconds()
+		a.draw()
+		a.saveShot(fmt.Sprintf("%s-f%d", name, i))
+		time.Sleep(40 * time.Millisecond)
+	}
+}
+
+// saveShot saves the screen as it is (scripted runs with DSL_SHOTS).
+func (a *App) saveShot(name string) {
+	if a.simShots == "" {
+		return
 	}
 	a.shotN++
 	os.MkdirAll(a.simShots, 0o755)

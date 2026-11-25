@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -22,7 +23,14 @@ const (
 	tileW  = 34
 	tileG  = 2
 	barH   = 16 // title bar height
+
+	tileRise   = 6  // px the chosen tile stands up
+	launchRise = 24 // px more it rises when its app opens
+	launchDur  = 0.45
 )
+
+// cShadow is the colour of the shadow under raised tiles.
+var cShadow = hex(0x18202c)
 
 type Home struct {
 	sel      int
@@ -30,6 +38,13 @@ type Home struct {
 	last     time.Time
 	key      string
 	calendar bool
+	// lift is how far each app's tile stands up, 0..1: the chosen one eases up, the one left
+	// behind eases back down.
+	lift map[string]float64
+	// the open animation: launching is set while it plays; selX/selY is the chosen tile's
+	// resting place (from the last drawLower).
+	launching  bool
+	selX, selY int
 }
 
 func newHome(a *App) *Home { return &Home{last: time.Now()} }
@@ -65,7 +80,51 @@ func (h *Home) move(a *App, d int) {
 	a.snd.Play("move")
 }
 
-func (h *Home) Animating(a *App) bool { return math.Abs(h.slide) > 0.02 }
+func (h *Home) Animating(a *App) bool {
+	if math.Abs(h.slide) > 0.02 {
+		return true
+	}
+	key := ""
+	if e := h.cur(a); e != nil {
+		key = e.Key
+	}
+	for id, v := range h.lift {
+		if (id == key && v < 1) || (id != key && v > 0) {
+			return true
+		}
+	}
+	return key != "" && h.lift[key] < 1
+}
+
+// ease moves every tile's lift towards its target: up for the chosen app, down for the rest.
+func (h *Home) ease(a *App, dt float64) {
+	if h.lift == nil {
+		h.lift = map[string]float64{}
+	}
+	key := ""
+	if e := h.cur(a); e != nil {
+		key = e.Key
+		if _, ok := h.lift[key]; !ok {
+			h.lift[key] = 0
+		}
+	}
+	k := 1 - math.Exp(-dt*12)
+	for id, v := range h.lift {
+		target := 0.0
+		if id == key {
+			target = 1
+		}
+		v += (target - v) * k
+		if math.Abs(target-v) < 0.01 {
+			v = target
+		}
+		if v == 0 && id != key {
+			delete(h.lift, id)
+			continue
+		}
+		h.lift[id] = v
+	}
+}
 
 func (h *Home) Key(a *App, k cp0.Key) {
 	e := h.cur(a)
@@ -127,6 +186,7 @@ func (h *Home) Draw(a *App) {
 	if math.Abs(h.slide) < 0.02 {
 		h.slide = 0
 	}
+	h.ease(a, dt)
 	drawUpper(a, h.calendar)
 	drawHinge(a.g, paneL, 0, hingeW, 132)
 	h.drawLower(a)
@@ -280,11 +340,18 @@ func (h *Home) drawLower(a *App) {
 		g.text(lx+5, iy+31, last, hex(0xb0b0b0), 1, false)
 	}
 
-	// the strip
-	sy := iy + 52
+	// the strip: resting tiles first, then the raised ones over their shadows
+	sy := iy + 55
+	by := sy + tileW + 6 // scroll bar
 	mid := x0 + paneRW/2 - tileW/2
 	old := g.clip
-	g.setClip(x0, sy-2, paneRW, tileW+4)
+	g.setClip(x0, iy+48, paneRW, by-(iy+48))
+	type slot struct {
+		e    *Entry
+		x    int
+		lift float64
+	}
+	var slots []slot
 	for d := -4; d <= 4; d++ {
 		i := ((h.sel+d)%n + n) % n
 		if n < 9 && (d < -n/2 || d > (n-1)/2) {
@@ -295,22 +362,22 @@ func (h *Home) drawLower(a *App) {
 		if tx < x0-tileW || tx > W {
 			continue
 		}
-		base := cButton
-		if d == 0 && math.Abs(h.slide) < 0.3 {
-			base = a.theme()
-		}
-		g.dsSquare(tx, sy, tileW, tileW, base, false)
 		it := a.apps[i]
-		if ic := it.Icon(26); ic != nil {
-			g.icon(tx+4, sy+4, ic, 1)
-		} else {
-			placeholder(g, tx+4, sy+4, 26, it, a.theme())
+		slots = append(slots, slot{it, tx, smoothstep(h.lift[it.Key])})
+	}
+	sort.SliceStable(slots, func(p, q int) bool { return slots[p].lift < slots[q].lift })
+	for _, s := range slots {
+		if s.e == e {
+			h.selX, h.selY = s.x, sy
+			if h.launching {
+				continue // drawLaunch draws it, over the white
+			}
 		}
+		drawTile(a, s.e, s.x, sy, s.lift*tileRise, s.lift)
 	}
 	g.clip = old
 
 	// scroll bar with arrows
-	by := sy + tileW + 6
 	g.artIcon(x0+8, by+4, artLeft, 10, cBorder)
 	g.artIcon(W-8, by+4, artRight, 10, cBorder)
 	tx0, tw := x0+16, paneRW-32
@@ -322,6 +389,49 @@ func (h *Home) drawLower(a *App) {
 		pos = (tw - thumb) * h.sel / (n - 1)
 	}
 	g.dsButton(tx0+pos, by, thumb, 9, a.theme(), false)
+}
+
+// drawTile draws an app's square button resting at x,y, raised by rise px. lift (0..1) fades
+// its colour from grey to the favourite colour and casts its shadow on the paper below.
+func drawTile(a *App, e *Entry, x, y int, rise, lift float64) {
+	g := a.g
+	if lift > 0.01 {
+		// a soft shadow all round, heavier below: it marks the chosen app
+		sy := y + 2 - int(math.Round(rise/2))
+		g.softShadow(x, sy, tileW, tileW, 2+4*lift, 0.55*lift, cShadow)
+	}
+	ty := y - int(math.Round(rise))
+	g.dsSquare(x, ty, tileW, tileW, mix(cButton, a.theme(), lift), false)
+	if ic := e.Icon(26); ic != nil {
+		g.icon(x+4, ty+4, ic, 1)
+	} else {
+		placeholder(g, x+4, ty+4, 26, e, a.theme())
+	}
+}
+
+// drawLaunch draws the open animation over a normal frame (drawn with h.launching set, so the
+// chosen tile is left out) at p (0..1): everything fades to white while the tile rises from
+// where it stood, its shadow spreading below; the app's name fades in under it.
+func (h *Home) drawLaunch(a *App, e *Entry, from, p float64) {
+	g := a.g
+	g.noClip()
+	g.shade(0, 0, W, H, cWhite, smoothstep(p))
+	up := 1 - math.Pow(1-p, 3) // ease out
+	rise := from + (tileRise+launchRise-from)*up
+	x, y := h.selX, h.selY
+	// the shadow stays on the paper, spreading and fading as the tile lifts away from it
+	g.softShadow(x+2, y+2, tileW-4, tileW-4, 6+10*up, 0.5-0.32*up, cShadow)
+	ty := y - int(math.Round(rise))
+	g.dsSquare(x, ty, tileW, tileW, a.theme(), false)
+	if ic := e.Icon(26); ic != nil {
+		g.icon(x+4, ty+4, ic, 1)
+	} else {
+		placeholder(g, x+4, ty+4, 26, e, a.theme())
+	}
+	if p > 0.4 {
+		t := smoothstep((p - 0.4) / 0.6)
+		g.textC(x+tileW/2, y+tileW+16, fit(e.Name, 180, 1, false), mix(cWhite, cDark, t), 1, false)
+	}
 }
 
 func placeholder(g *G, x, y, s int, e *Entry, theme RGB) {
