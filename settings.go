@@ -916,6 +916,7 @@ func systemPage(a *App) View {
 	l := page("SYSTEM", artSystem)
 	l.Refresh = func(a *App, l *RowList) {
 		l.Rows = []*Row{
+			{Label: "Doctor", Kind: rowLink, Value: doctorSummary(), Do: func(a *App, r *Row) { a.push(doctorPage(a, l)) }},
 			{Label: "Device", Value: "Cardputer Zero"},
 			{Label: "System", Value: osName()},
 			{Label: "Kernel", Value: kernel()},

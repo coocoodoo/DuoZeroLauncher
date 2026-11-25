@@ -26,9 +26,10 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   CLI, Python, SSH, IP Panel, Calculator, PictoChat, Settings. Arrows move (Up/Down jump 5), keys 4–8:
   OPEN, FAVE (pin to the front), INFO (details, hide, uninstall), SETTINGS, LOCK. Tab shows the
   calendar. Leave via Settings > Launcher.
-- **Tab is the power button:** hold it anywhere to lock and switch the screen off (backlight
-  off). While it is off nothing but Tab wakes it, like a phone; the volume keys still change the
-  volume. Tab wakes it to the lock screen, and a second
+- **Tab is the power button:** hold it anywhere to lock and switch the screen off. While it is
+  off nothing but Tab wakes it, like a phone; the volume keys still change the volume. (The
+  Cardputer's backlight still glows at 0%, so Duo paints the screen black first; with the
+  Doctor's "terminal kept off the screen" fix it also powers the panel fully down.) Tab wakes it to the lock screen, and a second
   Tab unlocks (or asks for your PIN). The screen's own idle timeout switches it off the same way.
   The chosen app's tile eases up out of the strip in your favourite colour with a soft shadow
   around it, and the one you scrolled away from eases back down.
@@ -58,6 +59,24 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
 - **Updates itself from GitHub:** Settings > Launcher > Check for updates downloads the latest
   source from this repository, builds it on the device and restarts into it (the previous
   version is kept; "Undo last update" puts it back). Needs Go at `~/.local/go`.
+
+## Doctor: setting up a Cardputer
+
+Settings > System > **Doctor** checks that the Cardputer has the system changes Duo relies on
+and puts in what's missing (**Fix everything**, or one at a time). Changes that need root ask
+for your password once. Over SSH: `~/apps/duo-launcher/app --doctor` reports, and
+`app --doctor --fix` fixes (sudo asks at the terminal).
+
+| Check | Fix | Root |
+| --- | --- | --- |
+| Duo is the home screen | `~/.local/bin/cardputer-home` + the APPLaunch drop-in (from the next boot) | no |
+| Boot logo lets go | `fb_load.service.d/duo.conf` (no `--keep-open`) | yes |
+| Terminal kept off the screen | `duo-console.service`: tty1 in graphics mode, so the text console never draws over Duo and the screen can power fully off | yes |
+| Device name in /etc/hosts | the `127.0.1.1` line (sudo stops stalling ~10 s) | yes |
+| Bluetooth audio allowed | WirePlumber `90-bluetooth-no-seat.conf` | no |
+| Go, ZeroCode helper, brightness | reported only | |
+
+The files it installs are in `device/` (built into Duo).
 
 ## Uninstalling apps
 

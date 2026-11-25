@@ -1,0 +1,20 @@
+# Duo Launcher: keep the Linux text console off the LCD. tty1 is switched to graphics mode, so
+# the kernel stops drawing text (boot messages, the cursor, echoed keys) over the launcher and
+# ignores screen blanking; Duo can then power the panel fully down when the screen goes off.
+# Installed by Duo's Doctor (Settings > System > Doctor).
+# Undo: systemctl disable --now duo-console && rm /etc/systemd/system/duo-console.service
+[Unit]
+Description=Keep the text console off the LCD (tty1 in graphics mode) for Duo Launcher
+After=systemd-vconsole-setup.service fb_load.service
+ConditionPathExists=/dev/tty1
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/python3 -c "import fcntl, os; fd = os.open('/dev/tty1', os.O_RDWR); fcntl.ioctl(fd, 0x4B3A, 1)"
+ExecStart=/bin/sh -c 'echo 0 > /sys/class/graphics/fbcon/cursor_blink; touch /run/duo-console'
+ExecStop=/bin/rm -f /run/duo-console
+ExecStop=/usr/bin/python3 -c "import fcntl, os; fd = os.open('/dev/tty1', os.O_RDWR); fcntl.ioctl(fd, 0x4B3A, 0)"
+
+[Install]
+WantedBy=multi-user.target

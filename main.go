@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.7.5"
+const version = "0.7.6"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -97,6 +97,9 @@ func main() {
 	}
 	if len(os.Args) == 2 && os.Args[1] == "--update-check" {
 		os.Exit(updateCheckCLI())
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "--doctor" {
+		os.Exit(doctorCLI(len(os.Args) == 3 && os.Args[2] == "--fix"))
 	}
 	if len(os.Args) == 3 && os.Args[1] == "--sounds" {
 		if err := writeSoundPreview(os.Args[2]); err != nil {
@@ -394,19 +397,25 @@ func (a *App) sleepNow() {
 	a.screenOff()
 }
 
-// panelPowerOff also powers the panel down (FBIOBLANK) when the screen goes off. Off by
-// default: on the Cardputer the kernel console repainted itself over Duo when the panel came
-// back (0.7.4), so the backlight alone switches the screen off until that is solved on the
-// device. DSL_PANEL_OFF=1 turns it on for testing.
-var panelPowerOff = os.Getenv("DSL_PANEL_OFF") == "1"
+// panelPowerOff says whether the panel may be powered down (FBIOBLANK) when the screen goes off.
+// Only with the text console in graphics mode (the Doctor's "console" fix, which leaves
+// /run/duo-console): otherwise the kernel console counts itself blanked too, and the next key
+// press switches the panel back on showing the terminal (0.7.4). DSL_PANEL_OFF=1 forces it.
+func panelPowerOff() bool {
+	return os.Getenv("DSL_PANEL_OFF") == "1" || fileExists(consoleMarker)
+}
 
-// screenOff turns the display off, like a phone's power button: the backlight to 0 (and the
-// panel powered down when panelPowerOff). The corner repair pauses so nothing wakes every 8 ms.
-// Only Tab turns it back on.
+// screenOff turns the display off, like a phone's power button. On the Cardputer brightness 0
+// still glows (the backlight PWM is inverted: stopping it leaves the LED dimly on), so the screen
+// is painted black first, then the backlight goes to 0, then the panel is powered down when that
+// is safe (panelPowerOff). The corner repair pauses so nothing wakes every 8 ms. Only Tab wakes.
 func (a *App) screenOff() {
+	a.g.noClip()
+	a.g.rect(0, 0, W, H, cBlack)
+	a.scr.Show()
 	setBacklight(0)
 	a.scr.GuardCorner(false)
-	if panelPowerOff {
+	if panelPowerOff() {
 		a.blanked = a.scr.Blank(true)
 	}
 	a.dimLevel = 2

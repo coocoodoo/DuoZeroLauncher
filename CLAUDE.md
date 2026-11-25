@@ -250,4 +250,20 @@ then reboot, or ask the user to restart it.
   fixes are FBIOPAN_DISPLAY back to 0 plus a full redraw after unblank, or putting tty1 in
   KD_GRAPHICS / unbinding fbcon (root).
 
+## Local changes (0.7.6)
+
+- Why the screen didn't go dark and the terminal showed: the backlight PWM is inverted, so
+  brightness 0 (PWM stopped) still glows; and the kernel text console (fbcon on tty1, KD_TEXT)
+  draws on the same framebuffer: it repaints when the panel is unblanked or the console is
+  poked by a key, and while Duo sleeps nothing paints over it.
+- `screenOff` now paints the screen black before the backlight goes to 0, and powers the panel
+  down (FBIOBLANK) only when `/run/duo-console` exists (`panelPowerOff()`).
+- The Doctor (`doctor.go`; Settings > System > Doctor; `app --doctor [--fix]`): checks and fixes
+  home screen (user files), boot logo, console (`device/duo-console.service`: tty1 in KD_GRAPHICS
+  via python3 ioctl 0x4B3A, marker `/run/duo-console`), /etc/hosts, Bluetooth audio (user file);
+  reports Go, the ZeroCode helper and brightness. Root fixes are one script
+  (`doctorRootScript`) run with `runSudo` (UI) or an interactive `sudo` (CLI). Device files are
+  embedded from `device/` (`deviceFS`). Tests: `doctor_test.go` (`sh -n` on the root script runs
+  where `sh` exists, e.g. on the device).
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).
