@@ -84,4 +84,13 @@ then reboot, or ask the user to restart it.
 - `app --version` prints the version; `app --update-check` downloads and builds the latest
   without installing it.
 
+## Local changes (0.6.1)
+
+- Smoother gradients: `dither565` (gfx.go, 4x4 ordered dither) is used by `pxSmooth` for the
+  texture fills in `draw9` (bars, buttons, tiles, selected rows) and the `rrect`/`bar` gradients,
+  so they don't band on the 16-bit screen. Flat fills (`rect`) and text stay undithered.
+- Small icons use the SVG art: `smallIcon` (art.go) scales the 24 px tile or 20 px key-bar render
+  down with area averaging; `artIcon` draws it (pixel glyph only when there is no SVG). Used for
+  every page title (13 px), the home alarm bell and favourite star (11 px) and the strip arrows.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

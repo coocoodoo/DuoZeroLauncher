@@ -93,6 +93,27 @@ func (g *G) px(x, y int, c RGB) {
 	}
 }
 
+// bayer4 is a 4x4 ordered-dither matrix (0..15).
+var bayer4 = [4][4]int{{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}}
+
+// dither565 converts to RGB565 with ordered dithering, so a smooth gradient reads as smooth on
+// the 16-bit screen instead of breaking into visible bands.
+func dither565(x, y int, c RGB) uint16 {
+	t := 2*bayer4[y&3][x&3] + 1 // 1..31, centred
+	q := func(v uint8, levels int) uint16 {
+		n := (int(v)*levels*32 + t*255) / (255 * 32)
+		return uint16(min(n, levels))
+	}
+	return q(c.R, 31)<<11 | q(c.G, 63)<<5 | q(c.B, 31)
+}
+
+// pxSmooth writes one pixel of a gradient or texture with dithering.
+func (g *G) pxSmooth(x, y int, c RGB) {
+	if g.in(x, y) {
+		g.s.Px[y*W+x] = dither565(x, y, c)
+	}
+}
+
 func (g *G) get(x, y int) RGB {
 	if x < 0 || y < 0 || x >= W || y >= H {
 		return RGB{}
@@ -171,7 +192,9 @@ func (g *G) rrect(x, y, w, h, r int, top, bot RGB) {
 			c = mix(top, bot, float64(yy)/float64(h-1))
 		}
 		for xx := 0; xx < w; xx++ {
-			if a := roundCover(xx, yy, w, h, r); a > 0 {
+			if a := roundCover(xx, yy, w, h, r); a >= 1 {
+				g.pxSmooth(x+xx, y+yy, c)
+			} else if a > 0 {
 				g.blend(x+xx, y+yy, c, a)
 			}
 		}
@@ -241,7 +264,10 @@ func (g *G) bar(x, y, w, h int, tint RGB) {
 	top := mix(hex(0x6a6a6a), tint, 0.12)
 	bot := mix(hex(0x3c3c3c), tint, 0.10)
 	for i := 0; i < h; i++ {
-		g.hline(x, y+i, w, mix(top, bot, float64(i)/float64(max(h-1, 1))))
+		c := mix(top, bot, float64(i)/float64(max(h-1, 1)))
+		for xx := x; xx < x+w; xx++ {
+			g.pxSmooth(xx, y+i, c)
+		}
 	}
 	g.hline(x, y, w, top.lighter(0.25))
 	g.hline(x, y+h-1, w, hex(0x202020))
@@ -407,6 +433,16 @@ func btoi(b bool) int {
 // ---- pixel glyphs (11x11 art, drawn at 2x for the key bar and settings) ----
 
 // glyph draws ASCII art ('#' = ink, '+' = light ink) scaled by s, centred on (cx, cy).
+// artIcon draws the glyph's SVG render at size x size centred on (cx, cy), or the pixel glyph
+// when it has no SVG.
+func (g *G) artIcon(cx, cy int, art []string, size int, ink RGB) {
+	if t := smallIcon(art, size); t != nil {
+		g.texInk(t, cx-size/2, cy-size/2, ink, 1)
+		return
+	}
+	g.glyph(cx, cy, art, 1, ink)
+}
+
 func (g *G) glyph(cx, cy int, art []string, s int, ink RGB) {
 	h := len(art)
 	w := 0

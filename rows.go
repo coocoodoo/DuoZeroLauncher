@@ -324,8 +324,8 @@ func pageTitle(a *App, title string, art []string) {
 	ink := inkOn(a.theme())
 	x := 5
 	if art != nil {
-		g.glyph(x+5, 8, art, 1, ink)
-		x += 14
+		g.artIcon(x+6, 8, art, 13, ink) // the SVG icon, scaled down
+		x += 16
 	}
 	g.text(x, 4, title, ink, 1, false)
 	drawStatus(a, W-3, 3, ink)

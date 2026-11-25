@@ -125,7 +125,9 @@ func (g *G) draw9(t *Tex, x, y, w, h, s int, base *RGB, tileX, hollow bool) {
 			c := RGB{t.Pix[i], t.Pix[i+1], t.Pix[i+2]}
 			if base != nil {
 				hl := RGB{hardLight(base.R, c.R), hardLight(base.G, c.G), hardLight(base.B, c.B)}
-				g.blend(x+dx, y+dy, mix(*base, hl, a), 1)
+				g.pxSmooth(x+dx, y+dy, mix(*base, hl, a)) // dithered: the bar and button gradients
+			} else if a >= 1 {
+				g.pxSmooth(x+dx, y+dy, c)
 			} else {
 				g.blend(x+dx, y+dy, c, a)
 			}

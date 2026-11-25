@@ -152,7 +152,7 @@ func drawUpper(a *App, calendar bool) {
 	ink := inkOn(a.theme())
 	g.text(5, 4, fit(a.cfg.Name, paneL-24, 1, false), ink, 1, false)
 	if a.cfg.AlarmOn {
-		g.glyph(paneL-9, 8, artBell, 1, ink)
+		g.artIcon(paneL-9, 8, artBell, 11, ink)
 	}
 	if calendar {
 		g.dsCalendar(2, barH+3, paneL-4, 132-barH-4, now)
@@ -254,7 +254,7 @@ func (h *Home) drawLower(a *App) {
 	}
 	lx := x0 + 48
 	if a.cfg.pinIndex(e.Key) >= 0 {
-		g.glyph(W-8, iy+7, artStar, 1, cFocus)
+		g.artIcon(W-8, iy+7, artStar, 11, cFocus)
 	}
 	g.text(lx+3, iy+3, fit(e.Name, W-lx-14, 1, false), cBlack, 1, false)
 	g.dsInfoText(lx, iy+15, W-lx-2, 31)
@@ -311,8 +311,8 @@ func (h *Home) drawLower(a *App) {
 
 	// scroll bar with arrows
 	by := sy + tileW + 6
-	g.glyph(x0+8, by+4, artLeft, 1, cBorder)
-	g.glyph(W-8, by+4, artRight, 1, cBorder)
+	g.artIcon(x0+8, by+4, artLeft, 10, cBorder)
+	g.artIcon(W-8, by+4, artRight, 10, cBorder)
 	tx0, tw := x0+16, paneRW-32
 	g.rect(tx0, by+2, tw, 5, cGridBG)
 	g.frame(tx0, by+2, tw, 5, cBorder)

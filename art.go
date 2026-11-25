@@ -447,3 +447,43 @@ func tileIcon(art []string) *Tex {
 	}
 	return nil
 }
+
+var smallIcons = map[[2]any]*Tex{}
+
+// smallIcon is the glyph's SVG render scaled down to size x size with area averaging, so the
+// small icons in title bars stay anti-aliased instead of using the hand-drawn pixel glyphs.
+// nil when the glyph has no SVG.
+func smallIcon(art []string, size int) *Tex {
+	if len(art) == 0 {
+		return nil
+	}
+	key := [2]any{&art[0], size}
+	if t, ok := smallIcons[key]; ok {
+		return t
+	}
+	src := tileIcon(art)
+	if src == nil {
+		src = barIcon(art)
+	}
+	if src == nil {
+		smallIcons[key] = nil
+		return nil
+	}
+	const ss = 4 // samples per output pixel, per axis
+	out := &Tex{W: size, H: size, Pix: make([]uint8, size*size*4)}
+	for oy := 0; oy < size; oy++ {
+		for ox := 0; ox < size; ox++ {
+			sum := 0
+			for j := 0; j < ss; j++ {
+				for i := 0; i < ss; i++ {
+					sx := ((ox*ss + i) * src.W) / (size * ss)
+					sy := ((oy*ss + j) * src.H) / (size * ss)
+					sum += int(src.Pix[(sy*src.W+sx)*4+3])
+				}
+			}
+			out.Pix[(oy*size+ox)*4+3] = uint8(sum / (ss * ss))
+		}
+	}
+	smallIcons[key] = out
+	return out
+}
