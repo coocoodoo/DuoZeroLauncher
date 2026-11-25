@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.8.1"
+const version = "0.8.2"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -72,22 +72,24 @@ type App struct {
 	sudoPW    string
 	sudoUntil time.Time
 
-	busyMu     sync.Mutex
-	busyText   string
-	progress   float64 // 0..1 shows a progress bar under the busy message; < 0 hides it
-	jobGen     int     // bumped when Esc cancels a job, so its result is dropped
-	work       chan func()
-	quit       bool
-	leave      bool // chosen "Back to the system launcher": exit with exitLeave
-	dirty      bool
-	sim        bool
-	simShots   string
-	shotN      int
-	launch     *Entry // set while an app runs
-	vol        volState
-	bri        briState
-	flashUntil time.Time // screenshot flash
-	batWarned  int       // low-battery warning shown: 0 none, 1 low, 2 almost empty
+	busyMu      sync.Mutex
+	busyText    string
+	progress    float64 // 0..1 shows a progress bar under the busy message; < 0 hides it
+	jobGen      int     // bumped when Esc cancels a job, so its result is dropped
+	work        chan func()
+	quit        bool
+	leave       bool // chosen "Back to the system launcher": exit with exitLeave
+	dirty       bool
+	sim         bool
+	simShots    string
+	shotN       int
+	launch      *Entry // set while an app runs
+	vol         volState
+	bri         briState
+	flashUntil  time.Time   // screenshot flash
+	batWarned   int         // low-battery warning shown: 0 none, 1 low, 2 almost empty
+	doctorAsk   []*docCheck // the start-up check found these; asked about once the home screen shows
+	doctorAskFP string
 
 	loadingOn bool        // the loading ticks are playing (the busy screen's squares are on screen)
 	blanked   bool        // the panel is powered down (screenOff)
@@ -141,6 +143,9 @@ func main() {
 	a.stack = []View{newHome(a)}
 	if a.cfg.Jingle && !a.sim {
 		a.snd.Play(a.startupSound())
+	}
+	if !a.sim {
+		go a.doctorAtStart()
 	}
 	a.loop()
 	a.shutdown()
@@ -318,6 +323,7 @@ func (a *App) loop() {
 		}
 		a.idle()
 		a.checkBattery()
+		a.checkDoctorAsk()
 		a.checkAlarm()
 		if a.dimLevel < 2 && (a.dirty || a.animating() || a.now.Sub(frame) >= time.Second) {
 			a.draw()

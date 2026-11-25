@@ -95,7 +95,7 @@ for your password once. Over SSH: `~/apps/duo-launcher/app --doctor` reports, an
 
 It compares installed files with Duo's copies (UPDATE when they differ), keeps the first file a fix
 replaces as `<file>.duo-bak`, and offers Undo for anything it put in (`app --doctor --undo KEY`).
-After fixing it checks again and says what only counts from the next boot or login. A shareable log
+After fixing it checks again and says what only counts from the next boot or login. **What to do** explains, in plain words, what is already in place, what needs fixing and why, and what you have to do yourself; each check has its own page. A little after Duo starts it checks once and, if something needs attention, asks whether to open the Doctor. A shareable log
 (no passwords or keys) is at `~/.cache/dslauncher/doctor.log`. The files it installs are in
 `device/` (built into Duo); `device/TWEAKS.md` lists every change and why.
 

@@ -308,6 +308,26 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.8.2)
+
+- The Doctor explains itself (the user: verify what's already done, say whether anything is
+  needed, and explain what to do for Duo to work properly). Every check has `What` (what it does),
+  `Why` (what breaks without it) and, for things the Doctor can't put in, `Help` (the manual
+  steps); `docCheck.todo` turns the state into what to do ("Nothing to do: it's already in
+  place", "Choose FIX...", "restart the Cardputer to finish", or `Help`).
+- `tally` sorts checks into fix / later / manual / ok / not needed; `headline` sums them up
+  ("All set: Duo has everything it needs." or "2 fixes needed, 1 waits for a restart, 1 needs
+  you."), shown as a toast when the Doctor opens and as its footer. `doctorAdvice` is the "What
+  to do" page (also printed by `app --doctor`).
+- `DocText` (doctor.go): a scrolling text page (Up/Down, PgUp/PgDn) with an optional key-4
+  action, used for "What to do" (FIX ALL), each check's details (FIX or UNDO) and the result
+  after fixing (fixed and checked / restart to finish / not fixed, then the new headline).
+- Start-up check (`doctorAtStart`, 20 s after start, not in scripted runs): updates the
+  Settings > System > Doctor value and, when something needs fixing or the user's attention,
+  `checkDoctorAsk` asks once on the home screen whether to open the Doctor. The same set of
+  problems is asked about only once (`doctor.json` "asked").
+- Tests: `TestDoctorAdvice`, `TestDoctorAsksOnce`; `DSL_DOC_SHOTS=<dir>` saves the pages.
+
 ## Local changes (0.8.1)
 
 - The Doctor covers every launcher tweak in `device/TWEAKS.md` (scope: launcher only; no Go,

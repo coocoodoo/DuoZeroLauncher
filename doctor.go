@@ -21,6 +21,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"dslauncher/cp0"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -81,7 +82,9 @@ func (s docState) label(later string) string {
 type docCheck struct {
 	Key     string // what --fix/--undo and the log call it
 	Name    string
+	What    string // what it does for Duo, in one sentence
 	Why     string // what goes wrong without it
+	Help    string // what the user can do when the Doctor can't (docInfo)
 	Detail  string // what was found
 	Section string // "Duo", "System" or "Factory"
 	State   docState
@@ -235,8 +238,9 @@ func groupState() (wanted, missing, notYet []string) {
 }
 
 type docManifest struct {
-	Applied map[string]string `json:"applied"` // key -> when the Doctor put it in
-	Groups  []string          `json:"groups"`  // groups the Doctor added the user to
+	Applied map[string]string `json:"applied"`         // key -> when the Doctor put it in
+	Groups  []string          `json:"groups"`          // groups the Doctor added the user to
+	Asked   string            `json:"asked,omitempty"` // the problems the start-up check last asked about
 }
 
 func docManifestPath() string {
@@ -274,7 +278,8 @@ func doctorChecks() []*docCheck {
 	homeScript := filepath.Join(home, ".local/bin/cardputer-home")
 	dropIn := filepath.Join(home, ".config/systemd/user/APPLaunch.service.d/home-screen.conf")
 	hc := add(&docCheck{Key: "home", Section: "Duo", Name: "Duo is the home screen", Later: "next boot",
-		Why: "the stock launcher starts at boot instead of Duo",
+		What: "Makes Duo the launcher that starts when the Cardputer turns on, and brings it back if it closes.",
+		Why:  "the stock launcher starts at boot instead of Duo",
 		fix: func() error {
 			if err := putUserFile(homeScript, deviceFile("cardputer-home"), 0o755); err != nil {
 				return err
@@ -308,7 +313,8 @@ func doctorChecks() []*docCheck {
 
 	// 2. the boot logo lets go of the screen
 	lc := add(&docCheck{Key: "bootlogo", Section: "System", Name: "Boot logo lets go", Root: true, Later: "next boot",
-		Why: "the M5Stack logo can stay over Duo after boot", rootArg: "bootlogo", undoArg: "undo-bootlogo"})
+		What: "Lets the M5Stack boot logo go away once Duo starts.",
+		Why:  "the M5Stack logo can stay over Duo after boot", rootArg: "bootlogo", undoArg: "undo-bootlogo"})
 	switch {
 	case !exists("/usr/sbin/fb_load"):
 		lc.State, lc.Detail = docNA, "no fb_load on this system"
@@ -330,8 +336,10 @@ func doctorChecks() []*docCheck {
 
 	// 3. the console cursor is hidden; 4. the console is kept off the screen
 	cc := add(&docCheck{Key: "cursor", Section: "System", Name: "Console cursor hidden", Root: true,
-		Why: "a blinking cursor can show in the bottom-left corner", rootArg: "cursor", undoArg: "undo-cursor"})
+		What: "Hides the text console's blinking cursor, which shows as a black square in the bottom-left corner.",
+		Why:  "a blinking cursor can show in the bottom-left corner", rootArg: "cursor", undoArg: "undo-cursor"})
 	co := add(&docCheck{Key: "console", Section: "System", Name: "Terminal kept off the screen", Root: true,
+		What:    "Stops the text console from drawing over Duo, and lets the screen switch fully off.",
 		Why:     "the text console can show over Duo, and the screen can't switch fully off",
 		rootArg: "console", undoArg: "undo-console"})
 	if !exists("/dev/tty1") {
@@ -372,6 +380,7 @@ func doctorChecks() []*docCheck {
 	// 5. the device name is in /etc/hosts
 	name := hostname()
 	ho := add(&docCheck{Key: "hosts", Section: "System", Name: "Device name in /etc/hosts", Root: true,
+		What:    "Lists this Cardputer's name in /etc/hosts, so admin actions don't stall for about 10 seconds.",
 		Why:     "every admin action waits ~10 s while the name is looked up",
 		rootArg: "hosts:" + name, undoArg: "undo-hosts"})
 	switch {
@@ -381,6 +390,7 @@ func doctorChecks() []*docCheck {
 		ho.State, ho.Detail = docOK, name+" is listed"
 	case !hostRE.MatchString(name):
 		ho.State, ho.Detail = docInfo, "the device name "+strconv.Quote(name)+" can't go in /etc/hosts"
+		ho.Help = "Rename the Cardputer in Settings > User > Device name, using only letters, digits and dashes. Then open the Doctor again."
 	default:
 		ho.State, ho.Detail = docFix, name+" isn't listed (127.0.1.1 names another device)"
 	}
@@ -388,7 +398,8 @@ func doctorChecks() []*docCheck {
 	// 6. Bluetooth audio is allowed
 	btConf := filepath.Join(home, ".config/wireplumber/wireplumber.conf.d/90-bluetooth-no-seat.conf")
 	bt := add(&docCheck{Key: "bluetooth", Section: "Duo", Name: "Bluetooth audio allowed",
-		Why: "music can't play to Bluetooth speakers or a car stereo",
+		What: "Lets Duo's sound and music play through Bluetooth speakers and car stereos.",
+		Why:  "music can't play to Bluetooth speakers or a car stereo",
 		fix: func() error {
 			if err := putUserFile(btConf, deviceFile("90-bluetooth-no-seat.conf"), 0o644); err != nil {
 				return err
@@ -416,6 +427,7 @@ func doctorChecks() []*docCheck {
 
 	// 7. Wi-Fi networks can be added from the launcher
 	wf := add(&docCheck{Key: "wifi", Section: "System", Name: "Wi-Fi settings allowed", Root: true,
+		What:    "Lets you add and join Wi-Fi networks from the launcher.",
 		Why:     "adding or joining Wi-Fi networks says \"service unavailable\"",
 		rootArg: "wifi:" + me, undoArg: "undo-wifi"})
 	if _, err := exec.LookPath("nmcli"); err != nil {
@@ -437,6 +449,7 @@ func doctorChecks() []*docCheck {
 			wf.State = docOK
 		} else if !nameRE.MatchString(me) {
 			wf.State = docInfo
+			wf.Help = "Your user name (" + me + ") can't go in the Wi-Fi rule. Put the rule in by hand: see item 7 of device/TWEAKS.md."
 		} else {
 			wf.State = docFix
 		}
@@ -444,7 +457,8 @@ func doctorChecks() []*docCheck {
 
 	// 8. the user's groups
 	gr := add(&docCheck{Key: "groups", Section: "System", Name: "User groups", Root: true, Later: "next login",
-		Why: "brightness, the true black screen, the keyboard, sound or printing can fail"})
+		What: "Gives you access to the brightness, the backlight switch, the keyboard, sound and USB printers.",
+		Why:  "brightness, the true black screen, the keyboard, sound or printing can fail"})
 	wanted, missing, notYet := groupState()
 	switch {
 	case !onDevice || len(wanted) == 0:
@@ -454,6 +468,7 @@ func doctorChecks() []*docCheck {
 		gr.rootArg = "groups:" + me + ":" + strings.Join(missing, ",")
 	case len(missing) > 0:
 		gr.State, gr.Detail = docInfo, me+" isn't in "+strings.Join(missing, ", ")
+		gr.Help = "Add yourself over SSH: sudo usermod -aG " + strings.Join(missing, ",") + " " + me + ", then restart the Cardputer."
 	case len(notYet) > 0:
 		gr.State, gr.Detail = docLater, "added to "+strings.Join(notYet, ", ")+"; counts from the next login"
 	default:
@@ -465,7 +480,8 @@ func doctorChecks() []*docCheck {
 
 	// what the Doctor shows but doesn't install
 	bl := add(&docCheck{Key: "blackout", Section: "System", Name: "Screen goes fully dark",
-		Why: "Duo can't reach M5's backlight switch (line 9 of the m5ioe1 chip), so the screen still glows when off"})
+		What: "Lets the screen go completely black when it's off, instead of glowing.",
+		Why:  "Duo can't reach M5's backlight switch (line 9 of the m5ioe1 chip), so the screen still glows when off"})
 	switch st := backlightLineStatus(); st {
 	case "held", "in use", "free": // held by this Duo, by the running Duo, or free for it to hold
 		bl.State, bl.Detail = docOK, "backlight line "+st
@@ -473,35 +489,51 @@ func doctorChecks() []*docCheck {
 		bl.State, bl.Detail = docNA, "no m5ioe1 chip here"
 	default:
 		bl.State, bl.Detail = docInfo, st
+		bl.Help = "Make sure User groups is OK (the gpio group), then restart the Cardputer."
 	}
 	bk := add(&docCheck{Key: "backlight", Section: "System", Name: "Brightness control",
-		Why: "brightness and screen off need write access (the video group)"})
+		What: "Lets Duo change the brightness and turn the screen off.",
+		Why:  "brightness and screen off need write access (the video group)"})
 	if p := filepath.Join(sysRoot, "backlight/backlight/brightness"); !exists(p) {
 		bk.State, bk.Detail = docNA, "no backlight here"
 	} else if canWriteFile(p) {
 		bk.State, bk.Detail = docOK, "writable"
 	} else {
 		bk.State, bk.Detail = docInfo, "not writable (see User groups)"
+		bk.Help = "Fix User groups (the video group), then restart the Cardputer."
 	}
 
 	// 9. factory setup Duo needs (read-only)
 	if onDevice {
 		uid := strconv.Itoa(os.Getuid())
 		udev, _ := filepath.Glob("/etc/udev/rules.d/99-cardputer-zero-*.rules")
+		reinstall := "It comes with M5's system (the applaunch package). Reinstall it over SSH: sudo apt install --reinstall applaunch, then restart the Cardputer."
 		for _, f := range []struct {
-			key, name, why string
-			ok             bool
+			key, name, what, why, help string
+			ok                         bool
 		}{
-			{"autologin", "Console login for " + me, "nothing starts the launcher after boot", exists("/etc/systemd/system/getty@tty1.service.d/autologin.conf")},
-			{"linger", "Launcher runs without a login", "the launcher's user service doesn't start at boot", exists("/var/lib/systemd/linger/" + me)},
-			{"sound", "Sound server", "Duo's sounds and music can't play", exists("/run/user/" + uid + "/pulse/native")},
-			{"keyboard", "Keyboard device", "keys may not reach Duo", exists("/dev/input/cardputer-zero-internal")},
-			{"udev", "Cardputer device rules", "the keyboard and screen may not get their names", len(udev) > 0},
-			{"adb", "USB debugging setup", "ADB over USB isn't set up (USB-SW to the LEFT)", exists("/etc/systemd/system/adbd.service.d/cardputer.conf")},
+			{"autologin", "Console login for " + me, "Logs " + me + " in on the screen at boot, which starts the launcher.",
+				"nothing starts the launcher after boot",
+				"Turn on console auto-login over SSH: sudo raspi-config, then System Options > Boot / Auto Login > Console Autologin. Restart the Cardputer.",
+				exists("/etc/systemd/system/getty@tty1.service.d/autologin.conf")},
+			{"linger", "Launcher runs without a login", "Lets the launcher's user service start at boot.",
+				"the launcher's user service doesn't start at boot",
+				"Run once over SSH: sudo loginctl enable-linger " + me + ", then restart the Cardputer.",
+				exists("/var/lib/systemd/linger/" + me)},
+			{"sound", "Sound server", "Plays Duo's sounds and music (PipeWire).", "Duo's sounds and music can't play",
+				"Restart it over SSH: systemctl --user restart pipewire pipewire-pulse wireplumber. If it is still missing, restart the Cardputer.",
+				exists("/run/user/" + uid + "/pulse/native")},
+			{"keyboard", "Keyboard device", "The Cardputer's built-in keyboard, named for Duo.", "keys may not reach Duo", reinstall,
+				exists("/dev/input/cardputer-zero-internal")},
+			{"udev", "Cardputer device rules", "Names the keyboard and the screen at boot.", "the keyboard and screen may not get their names", reinstall,
+				len(udev) > 0},
+			{"adb", "USB debugging setup", "ADB over USB (with the USB-SW switch to the LEFT). Duo doesn't need it.",
+				"ADB over USB isn't set up", "Only needed for USB debugging. " + reinstall,
+				exists("/etc/systemd/system/adbd.service.d/cardputer.conf")},
 		} {
-			c := &docCheck{Key: f.key, Section: "Factory", Name: f.name, Why: f.why, State: docOK, Detail: "in place"}
+			c := &docCheck{Key: f.key, Section: "Factory", Name: f.name, What: f.what, Why: f.why, State: docOK, Detail: "in place"}
 			if !f.ok {
-				c.State, c.Detail = docInfo, "missing (part of M5's image, not something the Doctor installs)"
+				c.State, c.Detail, c.Help = docInfo, "missing (part of M5's system, not something the Doctor installs)", f.help
 			}
 			cs = append(cs, c)
 		}
@@ -753,27 +785,320 @@ func doctorAfter(before map[string]docState, res docResult, after []*docCheck) (
 	return
 }
 
+// ---- what to do ----
+
+// laterText is what the user does for a change that counts from the next boot or login.
+func laterText(later string) string {
+	switch later {
+	case "next boot":
+		return "restart the Cardputer"
+	case "next login":
+		return "restart the Cardputer (or log out and back in)"
+	}
+	return ""
+}
+
+// todo says in plain words what the user has to do about a check. cli: worded for a terminal.
+func (c *docCheck) todo(cli bool) string {
+	switch c.State {
+	case docOK:
+		return "Nothing to do: it's already in place."
+	case docFix, docUpdate:
+		t := "The Doctor can put this in."
+		if c.State == docUpdate {
+			t = "The Doctor can replace it with Duo's copy (yours is kept as .duo-bak)."
+		}
+		if cli {
+			t += " Run: app --doctor --fix"
+		} else {
+			t += " Choose FIX (or Fix everything)."
+		}
+		if c.Root {
+			t += " It asks for your password once."
+		}
+		if l := laterText(c.Later); l != "" {
+			t += " Then " + l + "."
+		}
+		return t
+	case docLater:
+		return "Already put in: " + laterText(c.Later) + " to finish."
+	case docInfo:
+		if c.Help != "" {
+			return c.Help
+		}
+		return "The Doctor can't put this in; see device/TWEAKS.md."
+	}
+	return "Nothing to do: this Cardputer doesn't need it."
+}
+
+func (c *docCheck) status() string {
+	switch c.State {
+	case docOK:
+		return "in place"
+	case docFix:
+		return "needs fixing"
+	case docUpdate:
+		return "different from Duo's copy"
+	case docLater:
+		return "put in, waiting for a restart"
+	case docInfo:
+		return "missing"
+	}
+	return "not needed here"
+}
+
+// docTally sorts the checks by what the user has to do.
+type docTally struct {
+	fix, later, manual, ok, na []*docCheck
+}
+
+func tally(cs []*docCheck) docTally {
+	var t docTally
+	for _, c := range cs {
+		switch {
+		case c.fixable():
+			t.fix = append(t.fix, c)
+		case c.State == docLater:
+			t.later = append(t.later, c)
+		case c.State == docInfo:
+			t.manual = append(t.manual, c)
+		case c.State == docOK:
+			t.ok = append(t.ok, c)
+		default:
+			t.na = append(t.na, c)
+		}
+	}
+	return t
+}
+
+func count(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return itoa(n) + " " + many
+}
+
+// headline sums up the checks in one line.
+func (t docTally) headline() string {
+	if len(t.fix)+len(t.later)+len(t.manual) == 0 {
+		return "All set: Duo has everything it needs."
+	}
+	var parts []string
+	if n := len(t.fix); n > 0 {
+		parts = append(parts, count(n, "fix", "fixes")+" needed")
+	}
+	if n := len(t.later); n > 0 {
+		parts = append(parts, count(n, "waits", "wait")+" for a restart")
+	}
+	if n := len(t.manual); n > 0 {
+		parts = append(parts, count(n, "needs", "need")+" you")
+	}
+	return strings.Join(parts, ", ") + "."
+}
+
+func names(cs []*docCheck) string {
+	var out []string
+	for _, c := range cs {
+		out = append(out, c.Name)
+	}
+	return strings.Join(out, ", ")
+}
+
+// doctorAdvice is the "what to do" text: what the Doctor will fix, what waits for a restart,
+// what the user has to do, and what is already in place.
+func doctorAdvice(cs []*docCheck, cli bool) []string {
+	t := tally(cs)
+	out := []string{t.headline()}
+	if len(t.fix) > 0 {
+		how := "Fix everything does them all"
+		if cli {
+			how = "app --doctor --fix does them all"
+		}
+		root := false
+		for _, c := range t.fix {
+			root = root || c.Root
+		}
+		if root {
+			how += ", with one password"
+		}
+		out = append(out, "", "For Duo to work properly, these need fixing ("+how+"):")
+		for _, c := range t.fix {
+			out = append(out, "- "+c.Name+": without it "+c.Why+".")
+		}
+	}
+	if len(t.later) > 0 {
+		out = append(out, "", "Already put in; restart the Cardputer to finish:")
+		for _, c := range t.later {
+			out = append(out, "- "+c.Name+".")
+		}
+	}
+	if len(t.manual) > 0 {
+		out = append(out, "", "The Doctor can't do these; here is what to do:")
+		for _, c := range t.manual {
+			out = append(out, "- "+c.Name+": "+c.todo(cli))
+		}
+	}
+	if len(t.ok) > 0 {
+		out = append(out, "", "Already in place, nothing to do ("+itoa(len(t.ok))+"): "+names(t.ok)+".")
+	}
+	if len(t.na) > 0 {
+		out = append(out, "", "Not needed on this Cardputer: "+names(t.na)+".")
+	}
+	return out
+}
+
 // ---- the screen ----
 
 var lastDoctorSummary = "OPEN"
 
 func doctorSummary() string { return lastDoctorSummary }
 
+// summarize is the Doctor row's value in Settings > System.
 func summarize(cs []*docCheck) string {
-	if n := len(docToFix(cs)); n > 0 {
-		return fmt.Sprintf("%d TO FIX", n)
+	t := tally(cs)
+	switch {
+	case len(t.fix) > 0:
+		return itoa(len(t.fix)) + " TO FIX"
+	case len(t.manual) > 0:
+		return itoa(len(t.manual)) + " TO CHECK"
+	case len(t.later) > 0:
+		return "RESTART"
 	}
 	return "ALL OK"
+}
+
+// DocText is a page of wrapped text (the Doctor's advice and details), scrolled with Up/Down,
+// with an optional action on key 4 / Enter.
+type DocText struct {
+	title string
+	paras []string
+	act   string
+	do    func(a *App)
+	top   int
+	lines []docLine
+}
+
+type docLine struct {
+	s    string
+	bold bool
+}
+
+const (
+	docTextTop    = 19
+	docTextHeight = 110
+	docLineH      = 13 // a line of text
+	docGapH       = 6  // a blank line between paragraphs
+)
+
+func (l docLine) height() int {
+	if l.s == "" {
+		return docGapH
+	}
+	return docLineH
+}
+
+// maxTop is the first line from which the rest all fit on the page.
+func (v *DocText) maxTop() int {
+	lines := v.wrapped()
+	room := docTextHeight - 8
+	for i := len(lines) - 1; i >= 0; i-- {
+		room -= lines[i].height()
+		if room < 0 {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+func (v *DocText) wrapped() []docLine {
+	if v.lines == nil {
+		for _, p := range v.paras {
+			if p == "" {
+				v.lines = append(v.lines, docLine{})
+				continue
+			}
+			bold := strings.HasSuffix(p, ":")
+			for i, l := range wrap(p, W-30, bold) {
+				if i > 0 && strings.HasPrefix(p, "- ") {
+					l = "  " + l
+				}
+				v.lines = append(v.lines, docLine{l, bold})
+			}
+		}
+	}
+	return v.lines
+}
+
+func (v *DocText) Key(a *App, k cp0.Key) {
+	last := v.maxTop()
+	switch {
+	case k.Back() || k.Slot() == 4:
+		a.snd.Play("back")
+		a.pop()
+	case (k.Name == "ENTER" || k.Slot() == 0) && v.do != nil:
+		a.snd.Play("select")
+		a.pop()
+		v.do(a)
+	case k.Name == "UP" || k.Name == "PGUP":
+		if v.top > 0 {
+			v.top = max(0, v.top-map[bool]int{true: 6, false: 1}[k.Name == "PGUP"])
+			a.snd.Play("move")
+		}
+	case k.Name == "DOWN" || k.Name == "PGDN":
+		if v.top < last {
+			v.top = min(last, v.top+map[bool]int{true: 6, false: 1}[k.Name == "PGDN"])
+			a.snd.Play("move")
+		}
+	}
+}
+
+func (v *DocText) Bar(a *App) []BarItem {
+	first := BarItem{}
+	if v.do != nil {
+		first = BarItem{v.act, artOK, false}
+	}
+	return []BarItem{first, {}, {}, {}, {"BACK", artBack, false}}
+}
+
+func (v *DocText) Draw(a *App) {
+	g := a.g
+	pageTitle(a, v.title, artSystem)
+	x, y, w, h := 6, docTextTop, W-12, docTextHeight
+	g.dsDetails(x, y, w, h)
+	lines := v.wrapped()
+	ly := y + 4
+	for i := v.top; i < len(lines) && ly+lines[i].height() <= y+h-4; i++ {
+		if i == v.top && lines[i].s == "" {
+			continue // no gap at the top
+		}
+		g.text(x+6, ly, lines[i].s, cBlack, 1, lines[i].bold)
+		ly += lines[i].height()
+	}
+	if last := v.maxTop(); last > 0 { // a scroll bar
+		th := max(10, (h-6)*(len(lines)-last)/len(lines))
+		ty := y + 3 + (h-6-th)*v.top/last
+		g.rect(x+w-5, y+3, 2, h-6, cGridBG)
+		g.rect(x+w-5, ty, 2, th, a.theme())
+	}
 }
 
 func doctorPage(a *App, parent *RowList) *RowList {
 	l := page("DOCTOR", artSystem)
 	var cs []*docCheck
+	first := true
 	fill := func() {
-		l.Rows = nil
-		fix := docToFix(cs)
-		if len(fix) > 0 {
-			l.Rows = append(l.Rows, &Row{Label: "Fix everything", Kind: rowAction, Value: fmt.Sprintf("%d TO FIX", len(fix)),
+		t := tally(cs)
+		l.Rows = []*Row{{Label: "What to do", Kind: rowLink, Value: summarize(cs), Do: func(a *App, r *Row) {
+			v := &DocText{title: "DOCTOR: WHAT TO DO", paras: doctorAdvice(cs, false)}
+			if len(t.fix) > 0 {
+				fix := t.fix
+				v.act, v.do = "FIX ALL", func(a *App) { doctorRun(a, l, fix) }
+			}
+			a.push(v)
+		}}}
+		if len(t.fix) > 0 {
+			fix := t.fix
+			l.Rows = append(l.Rows, &Row{Label: "Fix everything", Kind: rowAction, Value: count(len(fix), "FIX", "FIXES"),
 				Do: func(a *App, r *Row) { doctorRun(a, l, fix) }})
 		}
 		section := ""
@@ -782,18 +1107,22 @@ func doctorPage(a *App, parent *RowList) *RowList {
 			if c.Section != section {
 				section = c.Section
 				l.Rows = append(l.Rows, &Row{Label: map[string]string{"Duo": "-- Duo --", "System": "-- System --",
-					"Factory": "-- From M5's image --"}[section]})
+					"Factory": "-- From M5's system --"}[section]})
 			}
-			r := &Row{Label: c.Name, Value: c.State.label(c.Later)}
-			if c.Root && c.fixable() {
-				r.Value += " (SUDO)"
+			r := &Row{Label: c.Name, Kind: rowLink, Value: c.State.label(c.Later)}
+			if c.State == docOK {
+				r.Value = "OK"
 			}
 			if c.fixable() {
 				r.Kind = rowAction
+				if c.Root {
+					r.Value += " (SUDO)"
+				}
 			}
 			r.Do = func(a *App, r *Row) { doctorDetail(a, l, c) }
 			l.Rows = append(l.Rows, r)
 		}
+		l.Footer = t.headline()
 	}
 	l.Refresh = func(a *App, l *RowList) {
 		a.background("Checking this Cardputer...", func() error {
@@ -803,10 +1132,13 @@ func doctorPage(a *App, parent *RowList) *RowList {
 			lastDoctorSummary = summarize(cs)
 			doctorLog(doctorReport(cs)...)
 			fill()
+			if first { // say straight away whether anything is needed
+				first = false
+				a.notify(tally(cs).headline(), false)
+			}
 		})
 	}
 	l.Refresh(a, l)
-	l.Footer = "Log: " + tilde(doctorLogPath())
 	l.OnBack = func(a *App) {
 		if parent != nil && parent.Refresh != nil {
 			parent.Refresh(a, parent)
@@ -815,47 +1147,47 @@ func doctorPage(a *App, parent *RowList) *RowList {
 	return l
 }
 
-// doctorDetail explains a check and offers its fix or its undo.
+// doctorDetail explains one check: what it does, what was found, and what to do; with its fix
+// or its undo on key 4.
 func doctorDetail(a *App, l *RowList, c *docCheck) {
-	msg := c.Detail + "."
-	if c.State != docOK && c.State != docNA {
-		msg += " Without it " + c.Why + "."
+	paras := []string{"Status: " + c.status() + ".", "What to do: " + c.todo(false), "", "What it is: " + c.What,
+		"Found: " + c.Detail + "."}
+	if c.State != docOK && c.State != docNA && c.Why != "" {
+		paras = append(paras, "Without it "+c.Why+".")
 	}
+	v := &DocText{title: strings.ToUpper(c.Name), paras: paras}
 	switch {
 	case c.fixable():
-		when := ""
-		if c.Later != "" {
-			when = " It counts from the " + c.Later + "."
-		}
-		verb := "Put it in now?"
-		if c.State == docUpdate {
-			verb = "Replace it with Duo's copy (the old one is kept)?"
-		}
-		confirm(a, strings.ToUpper(c.Name), msg+when+" "+verb, func() { doctorRun(a, l, []*docCheck{c}) })
+		v.act, v.do = "FIX", func(a *App) { doctorRun(a, l, []*docCheck{c}) }
 	case c.State == docOK && canUndo(c):
-		confirm(a, "UNDO?", msg+" The Doctor put this in. Undo it?", func() {
-			do := func(pw string) {
-				a.background("Undoing...", func() error {
-					return doctorUndo(c, func(args ...string) (string, error) { return runSudo(pw, 90*time.Second, args...) })
-				}, func(err error) {
-					doctorLog("-- undo "+c.Key+": "+map[bool]string{true: "ok", false: "failed"}[err == nil], errText(err))
-					if err != nil {
-						alert(a, "NOT UNDONE", err.Error())
-					} else {
-						a.notify("Undone: "+c.Name, false)
-					}
-					l.Refresh(a, l)
-				})
-			}
-			if c.Root {
-				a.withSudo("Needed to change system settings", do)
-			} else {
-				do("")
-			}
-		})
-	default:
-		alert(a, strings.ToUpper(c.Name), msg)
+		v.paras = append(v.paras, "", "The Doctor put this in. UNDO takes it back out (the file it replaced comes back).")
+		v.act, v.do = "UNDO", func(a *App) { doctorUndoUI(a, l, c) }
 	}
+	a.snd.Play("modal")
+	a.push(v)
+}
+
+func doctorUndoUI(a *App, l *RowList, c *docCheck) {
+	confirm(a, "UNDO?", "Take out \""+c.Name+"\"? Without it "+c.Why+".", func() {
+		do := func(pw string) {
+			a.background("Undoing...", func() error {
+				return doctorUndo(c, func(args ...string) (string, error) { return runSudo(pw, 90*time.Second, args...) })
+			}, func(err error) {
+				doctorLog("-- undo "+c.Key+": "+map[bool]string{true: "ok", false: "failed"}[err == nil], errText(err))
+				if err != nil {
+					alert(a, "NOT UNDONE", err.Error())
+				} else {
+					a.notify("Undone: "+c.Name, false)
+				}
+				l.Refresh(a, l)
+			})
+		}
+		if c.Root {
+			a.withSudo("Needed to change system settings", do)
+		} else {
+			do("")
+		}
+	})
 }
 
 func errText(err error) string {
@@ -865,6 +1197,8 @@ func errText(err error) string {
 	return err.Error()
 }
 
+// doctorRun puts in the fixes, checks everything again, and shows what worked, what waits for
+// a restart, what didn't, and what (if anything) is still left to do.
 func doctorRun(a *App, l *RowList, cs []*docCheck) {
 	root := false
 	before := map[string]docState{}
@@ -887,24 +1221,32 @@ func doctorRun(a *App, l *RowList, cs []*docCheck) {
 				lines = append(lines, "-- error: "+e)
 			}
 			doctorLog(append(lines, doctorReport(after)...)...)
-			var msg []string
+			var paras []string
 			if len(fixed) > 0 {
-				msg = append(msg, "Fixed: "+strings.Join(fixed, ", ")+".")
+				paras = append(paras, "Fixed and checked: "+strings.Join(fixed, ", ")+".", "")
 			}
 			if len(later) > 0 {
-				msg = append(msg, "Counts later: "+strings.Join(later, ", ")+".")
+				paras = append(paras, "Put in; restart the Cardputer to finish: "+strings.Join(later, ", ")+".", "")
 			}
 			if len(failed) > 0 {
-				msg = append(msg, "Not fixed: "+strings.Join(failed, ", ")+". See the log.")
+				paras = append(paras, "Not fixed: "+strings.Join(failed, ", ")+".")
+				for _, e := range res.errs {
+					paras = append(paras, "- "+e)
+				}
+				paras = append(paras, "The log has the details: "+tilde(doctorLogPath())+".", "")
 			}
-			title := "FIXED"
+			paras = append(paras, "Now: "+tally(after).headline())
+			title := "DOCTOR: FIXED"
 			if len(failed) > 0 {
-				title = "NOT ALL FIXED"
+				title = "DOCTOR: NOT ALL FIXED"
+				a.snd.Play("error")
+			} else {
+				a.snd.Play("notice")
 			}
-			alert(a, title, strings.Join(msg, " "))
 			cs = after
 			lastDoctorSummary = summarize(after)
 			l.Refresh(a, l)
+			a.push(&DocText{title: title, paras: paras})
 		})
 	}
 	if root {
@@ -912,6 +1254,56 @@ func doctorRun(a *App, l *RowList, cs []*docCheck) {
 		return
 	}
 	do("")
+}
+
+// ---- at start-up ----
+
+// doctorAtStart checks the Cardputer once, a little after Duo starts (so the sound server and
+// the network are up), so Settings > System shows the real state; when something needs fixing
+// or the user's attention it asks once whether to open the Doctor. The same set of problems is
+// asked about only once (doctor.json "asked").
+func (a *App) doctorAtStart() {
+	time.Sleep(20 * time.Second)
+	cs := doctorChecks()
+	a.work <- func() {
+		lastDoctorSummary = summarize(cs)
+		doctorLog(append([]string{"-- at start-up"}, doctorReport(cs)...)...)
+		t := tally(cs)
+		need := append(append([]*docCheck{}, t.fix...), t.manual...)
+		if len(need) == 0 {
+			return
+		}
+		var keys []string
+		for _, c := range need {
+			keys = append(keys, c.Key+"="+itoa(int(c.State)))
+		}
+		if fp := strings.Join(keys, ","); loadDocManifest().Asked != fp {
+			a.doctorAsk, a.doctorAskFP = need, fp
+		}
+	}
+}
+
+// checkDoctorAsk asks about the start-up check's findings once the home screen is showing.
+func (a *App) checkDoctorAsk() {
+	if a.doctorAsk == nil || a.dimLevel != 0 || a.launch != nil || a.busy() != "" {
+		return
+	}
+	if _, home := a.top().(*Home); !home {
+		return
+	}
+	need := a.doctorAsk
+	a.doctorAsk = nil
+	m := loadDocManifest()
+	m.Asked = a.doctorAskFP
+	m.save()
+	list := names(need[:min(len(need), 3)])
+	if len(need) > 3 {
+		list += " and " + itoa(len(need)-3) + " more"
+	}
+	confirm(a, "DOCTOR", "For Duo to work properly, "+count(len(need), "thing needs", "things need")+
+		" attention: "+list+". Open the Doctor to see what to do?", func() {
+		a.push(doctorPage(a, nil))
+	})
 }
 
 // ---- over SSH: app --doctor [--fix | --undo KEY] ----
@@ -925,7 +1317,7 @@ func doctorCLI(args []string) int {
 		return string(out), err
 	}
 	show := func(cs []*docCheck) int {
-		bad, section := 0, ""
+		section := ""
 		for _, c := range cs {
 			if c.Section != section {
 				section = c.Section
@@ -936,13 +1328,19 @@ func doctorCLI(args []string) int {
 			case c.State == docOK:
 				mark = "ok"
 			case c.fixable():
-				mark, bad = "!!", bad+1
+				mark = "!!"
 			case c.State == docLater:
 				mark = "~~"
+			case c.State == docInfo:
+				mark = "??"
 			}
-			fmt.Printf("%s %-12s %s: %s\n", mark, c.Key, c.Name, c.Detail)
+			fmt.Printf("%s %-10s %s: %s\n", mark, c.Key, c.Name, c.Detail)
 		}
-		return bad
+		fmt.Println()
+		for _, l := range doctorAdvice(cs, true) {
+			fmt.Println(l)
+		}
+		return len(tally(cs).fix)
 	}
 	if len(args) >= 2 && args[0] == "--undo" {
 		for _, c := range doctorChecks() {
@@ -968,17 +1366,14 @@ func doctorCLI(args []string) int {
 	doctorLog(doctorReport(cs)...)
 	bad := show(cs)
 	if !fix || bad == 0 {
-		if bad > 0 {
-			fmt.Println("fix with: app --doctor --fix (asks for sudo once)")
-		}
-		fmt.Println("log:", doctorLogPath())
+		fmt.Println("\nlog:", doctorLogPath())
 		return min(bad, 1)
 	}
 	before := map[string]docState{}
 	for _, c := range docToFix(cs) {
 		before[c.Key] = c.State
 	}
-	fmt.Println("-- fixing")
+	fmt.Println("\n-- fixing")
 	res := doctorFix(docToFix(cs), sudo)
 	for _, e := range res.errs {
 		fmt.Println("!!", e)
@@ -987,11 +1382,17 @@ func doctorCLI(args []string) int {
 	fixed, later, failed := doctorAfter(before, res, after)
 	doctorLog(append([]string{"-- fixed (terminal): " + strings.Join(fixed, ", "), "-- counts later: " + strings.Join(later, ", "),
 		"-- not fixed: " + strings.Join(failed, ", ")}, doctorReport(after)...)...)
-	fmt.Println("-- now")
-	bad = show(after)
-	if len(later) > 0 {
-		fmt.Println("counts later:", strings.Join(later, ", "))
+	if len(fixed) > 0 {
+		fmt.Println("fixed and checked:", strings.Join(fixed, ", "))
 	}
-	fmt.Println("log:", doctorLogPath())
+	if len(later) > 0 {
+		fmt.Println("put in; restart the Cardputer to finish:", strings.Join(later, ", "))
+	}
+	if len(failed) > 0 {
+		fmt.Println("not fixed:", strings.Join(failed, ", "))
+	}
+	fmt.Println("\n-- checked again")
+	bad = show(after)
+	fmt.Println("\nlog:", doctorLogPath())
 	return min(bad, 1)
 }

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"dslauncher/cp0"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func findCheck(cs []*docCheck, key string) *docCheck {
@@ -162,5 +164,112 @@ func TestDocStateLabels(t *testing.T) {
 	}
 	if got := docUpdate.label(""); got != "UPDATE" {
 		t.Errorf("update label %q", got)
+	}
+}
+
+func testApp(t *testing.T) *App {
+	t.Helper()
+	scr := &cp0.Screen{Px: make([]uint16, W*H)}
+	a := &App{cfg: defaultConfig(), snd: &Sound{cache: map[string][]int16{}}, scr: scr, keys: newSimKeys(""),
+		status: &Status{Battery: -1}, work: make(chan func(), 16), start: time.Now(), progress: -1}
+	a.g = newG(scr)
+	a.stack = []View{&Home{last: time.Now()}}
+	a.simShots = os.Getenv("DSL_DOC_SHOTS") // set it to look at the pages
+	return a
+}
+
+func sampleChecks() []*docCheck {
+	return []*docCheck{
+		{Key: "home", Section: "Duo", Name: "Duo is the home screen", State: docOK, Detail: "same as Duo's copy",
+			What: "Makes Duo the launcher that starts when the Cardputer turns on."},
+		{Key: "console", Section: "System", Name: "Terminal kept off the screen", State: docFix, Root: true,
+			Why: "the text console can show over Duo", Detail: "duo-console.service isn't installed", What: "Stops the console."},
+		{Key: "hosts", Section: "System", Name: "Device name in /etc/hosts", State: docUpdate, Root: true, Why: "admin actions stall"},
+		{Key: "groups", Section: "System", Name: "User groups", State: docLater, Later: "next login"},
+		{Key: "sound", Section: "Factory", Name: "Sound server", State: docInfo, Help: "Restart it over SSH."},
+		{Key: "bluetooth", Section: "Duo", Name: "Bluetooth audio allowed", State: docNA},
+	}
+}
+
+// The Doctor says whether anything is needed, and what to do about each thing.
+func TestDoctorAdvice(t *testing.T) {
+	cs := sampleChecks()
+	if got := tally(cs).headline(); got != "2 fixes needed, 1 waits for a restart, 1 needs you." {
+		t.Errorf("headline %q", got)
+	}
+	if got := summarize(cs); got != "2 TO FIX" {
+		t.Errorf("summary %q", got)
+	}
+	advice := strings.Join(doctorAdvice(cs, false), "\n")
+	for _, want := range []string{"these need fixing (Fix everything does them all, with one password)",
+		"- Terminal kept off the screen: without it the text console can show over Duo.",
+		"restart the Cardputer to finish:\n- User groups.", "- Sound server: Restart it over SSH.",
+		"Already in place, nothing to do (1): Duo is the home screen.", "Not needed on this Cardputer: Bluetooth audio allowed."} {
+		if !strings.Contains(advice, want) {
+			t.Errorf("advice lacks %q:\n%s", want, advice)
+		}
+	}
+	if !strings.Contains(strings.Join(doctorAdvice(cs, true), "\n"), "app --doctor --fix does them all") {
+		t.Error("the terminal advice should name the command")
+	}
+	for _, c := range cs {
+		if c.todo(false) == "" {
+			t.Errorf("%s: no advice", c.Key)
+		}
+	}
+	if got := cs[0].todo(false); got != "Nothing to do: it's already in place." {
+		t.Errorf("OK todo %q", got)
+	}
+	if got := cs[3].todo(false); !strings.Contains(got, "restart the Cardputer") {
+		t.Errorf("later todo %q", got)
+	}
+	ok := []*docCheck{cs[0], cs[5]}
+	if got := tally(ok).headline(); got != "All set: Duo has everything it needs." || summarize(ok) != "ALL OK" {
+		t.Errorf("all-OK headline %q / %q", got, summarize(ok))
+	}
+
+	a := testApp(t)
+	v := &DocText{title: "DOCTOR: WHAT TO DO", paras: doctorAdvice(cs, false)}
+	a.push(v)
+	a.draw()
+	a.saveShot("doctor-advice")
+	n := len(v.wrapped())
+	for i := 0; i < n+3; i++ {
+		v.Key(a, cp0.Key{Name: "DOWN"})
+	}
+	if v.top != v.maxTop() || v.top == 0 {
+		t.Errorf("scrolled to %d of %d lines (last top %d)", v.top, n, v.maxTop())
+	}
+	a.draw()
+	a.saveShot("doctor-advice-end")
+	doctorDetail(a, page("DOCTOR", artSystem), cs[1])
+	if d, ok := a.top().(*DocText); !ok || d.act != "FIX" {
+		t.Fatalf("a check that needs fixing should offer FIX: %#v", a.top())
+	}
+	a.draw()
+	a.saveShot("doctor-detail")
+}
+
+// At start-up the Doctor asks once, on the home screen, and not again for the same problems.
+func TestDoctorAsksOnce(t *testing.T) {
+	setHome(t, t.TempDir())
+	a := testApp(t)
+	need := sampleChecks()[1:3]
+	a.doctorAsk, a.doctorAskFP = need, "console=1,hosts=2"
+	a.push(&DocText{title: "X"})
+	a.checkDoctorAsk()
+	if _, ok := a.top().(*Confirm); ok {
+		t.Fatal("asked over another screen")
+	}
+	a.pop()
+	a.checkDoctorAsk()
+	c, ok := a.top().(*Confirm)
+	if !ok || !strings.Contains(c.msg, "2 things need attention: Terminal kept off the screen, Device name in /etc/hosts") {
+		t.Fatalf("start-up question: %#v", a.top())
+	}
+	a.draw()
+	a.saveShot("doctor-ask")
+	if a.doctorAsk != nil || loadDocManifest().Asked != "console=1,hosts=2" {
+		t.Error("the question should be remembered")
 	}
 }
