@@ -93,4 +93,13 @@ then reboot, or ask the user to restart it.
   down with area averaging; `artIcon` draws it (pixel glyph only when there is no SVG). Used for
   every page title (13 px), the home alarm bell and favourite star (11 px) and the strip arrows.
 
+## Local changes (0.6.2)
+
+- Smooth shaded textures: the ds.css bar/button textures are a few flat shades joined by 1-px
+  checker rows, which became big blocks when stretched (a 16 px tile drawn at ~50 px). For
+  tinted textures (`draw9` with a base colour) `smoothTex` averages each row's interior (side
+  bevel columns kept; the 2-px bars averaged across) and `sliceY` stretches the middle with
+  linear interpolation instead of nearest pixels; the result is dithered (`pxSmooth`). Untinted
+  textures (input, alert, PictoChat frames) are drawn as before.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

@@ -109,20 +109,93 @@ func mapSlice(d, n, src, s int, tile bool) int {
 	return s + (d-s)*mid/max(n-2*s, 1)
 }
 
+var smoothCache = map[[2]any]*Tex{}
+
+// smoothTex blends a shaded texture's checkerboard rows into their average colour: the ds.css
+// bar and button textures are 4-6 flat shades joined by 1-px checker patterns, which turn into
+// big blocks when a 16 px texture is stretched to a 50 px tile. The s-pixel side columns
+// (bevels) keep their pixels; narrow tiled textures (the 2 px bars) are averaged across.
+func smoothTex(t *Tex, s int) *Tex {
+	key := [2]any{t, s}
+	if st, ok := smoothCache[key]; ok {
+		return st
+	}
+	out := &Tex{W: t.W, H: t.H, Pix: append([]uint8(nil), t.Pix...)}
+	x0, x1 := s, t.W-s
+	if x1-x0 < 2 {
+		x0, x1 = 0, t.W
+	}
+	for y := 0; y < t.H; y++ {
+		var sum [4]int
+		for x := x0; x < x1; x++ {
+			for k := 0; k < 4; k++ {
+				sum[k] += int(t.Pix[(y*t.W+x)*4+k])
+			}
+		}
+		n := x1 - x0
+		for x := x0; x < x1; x++ {
+			for k := 0; k < 4; k++ {
+				out.Pix[(y*t.W+x)*4+k] = uint8((sum[k] + n/2) / n)
+			}
+		}
+	}
+	smoothCache[key] = out
+	return out
+}
+
+// sliceY maps a destination row to a fractional source row: fixed s-pixel edges, and a smooth
+// linear stretch of the middle (rows y0 and y1, weight f of y1).
+func sliceY(d, n, src, s int) (int, int, float64) {
+	if s*2 >= src {
+		s = src / 2
+	}
+	switch {
+	case d < s:
+		return d, d, 0
+	case d >= n-s:
+		i := max(src-(n-d), 0)
+		return i, i, 0
+	}
+	lo, hi := s, src-s-1
+	if hi < lo || n-2*s <= 0 {
+		i := min(d, src-1)
+		return i, i, 0
+	}
+	fy := float64(s) + (float64(d-s)+0.5)*float64(src-2*s)/float64(n-2*s) - 0.5
+	fy = math.Max(float64(lo), math.Min(float64(hi), fy))
+	y0 := int(fy)
+	y1 := min(y0+1, hi)
+	return y0, y1, fy - float64(y0)
+}
+
 // draw9 draws t into the rectangle with s-pixel fixed edges. With base, the texture is blended
 // over that colour in hard-light mode (as background-blend-mode: hard-light does); hollow skips
-// the centre (a CSS border-image without fill).
+// the centre (a CSS border-image without fill). Shaded (base) textures are drawn as smooth,
+// dithered gradients (smoothTex, sliceY) rather than stretched pixel blocks.
 func (g *G) draw9(t *Tex, x, y, w, h, s int, base *RGB, tileX, hollow bool) {
+	src := t
+	if base != nil {
+		src = smoothTex(t, s)
+	}
 	for dy := 0; dy < h; dy++ {
-		sy := mapSlice(dy, h, t.H, s, false)
+		y0, y1, f := mapSlice(dy, h, t.H, s, false), 0, 0.0
+		if base != nil {
+			y0, y1, f = sliceY(dy, h, t.H, s)
+		}
 		for dx := 0; dx < w; dx++ {
 			if hollow && dx >= s && dx < w-s && dy >= s && dy < h-s {
 				continue
 			}
 			sx := mapSlice(dx, w, t.W, s, tileX)
-			i := (sy*t.W + sx) * 4
-			a := float64(t.Pix[i+3]) / 255
-			c := RGB{t.Pix[i], t.Pix[i+1], t.Pix[i+2]}
+			i := (y0*t.W + sx) * 4
+			p := src.Pix
+			c := RGB{p[i], p[i+1], p[i+2]}
+			a := float64(p[i+3]) / 255
+			if f > 0 {
+				j := (y1*t.W + sx) * 4
+				c = mix(c, RGB{p[j], p[j+1], p[j+2]}, f)
+				a = (a*(1-f) + float64(p[j+3])/255*f)
+			}
 			if base != nil {
 				hl := RGB{hardLight(base.R, c.R), hardLight(base.G, c.G), hardLight(base.B, c.B)}
 				g.pxSmooth(x+dx, y+dy, mix(*base, hl, a)) // dithered: the bar and button gradients
