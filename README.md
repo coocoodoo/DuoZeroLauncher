@@ -5,8 +5,10 @@ textures and fonts of [ds.css](https://github.com/spiritov/ds.css) (MIT, by spir
 paper, buttons and bars blended over a favourite colour the way its CSS does, the info header,
 the orange alert with the loading squares, the striped input field, PictoChat frames, the pixel
 font and the clock-digit font. The left "upper screen" shows the square clock (Tab: the calendar),
-the right "touch screen" the apps. Sounds come from the Nintendo DSi UI Sounds pack (by
-Helljumper; `tools/mksounds.py` converts it into `assets/sounds/`), mixed so they can overlap.
+the right "touch screen" the apps. Sounds are the Nintendo DS system sounds (the "Nintendo DS
+System Sounds" gamerip on KHInsider; `tools/mksounds.py` converts its FLACs into `assets/sounds/`,
+see `assets/sounds/SOURCE.md` for which plays when), mixed so they can overlap. The yellow loading
+squares blip once per turn with the DSi's loading sound.
 
 `tools/mkassets.py <ds.css-main/src/assets>` halves the textures to native pixels into `assets/`
 (embedded in the binary) and pre-renders the fonts into `fontdata.go`. The clock font is under the

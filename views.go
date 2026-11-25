@@ -357,7 +357,8 @@ type Alarm struct {
 func newAlarm(a *App) *Alarm { return &Alarm{started: time.Now()} }
 
 func (v *Alarm) Animating(a *App) bool {
-	if time.Since(v.rung) > 1300*time.Millisecond && time.Since(v.started) < 90*time.Second {
+	// the DS alarm ring, played through and started again, for up to 90 s
+	if time.Since(v.rung) > max(a.snd.Length("alarm"), 1300*time.Millisecond) && time.Since(v.started) < 90*time.Second {
 		v.rung = time.Now()
 		a.snd.Play("alarm")
 	}
@@ -370,10 +371,13 @@ func (v *Alarm) Key(a *App, k cp0.Key) {
 		t := time.Now().Add(5 * time.Minute)
 		a.alarmDay = ""
 		a.cfg.AlarmH, a.cfg.AlarmM = t.Hour(), t.Minute()
+		a.snd.Stop("alarm")
+		a.snd.Play("alarm-exit")
 		a.notify("Snoozing for five minutes", false)
 		a.pop()
 	case k.Name == "ENTER" || k.Back() || k.Slot() == 0:
-		a.snd.Play("back")
+		a.snd.Stop("alarm")
+		a.snd.Play("alarm-exit")
 		a.pop()
 	}
 }

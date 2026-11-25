@@ -163,7 +163,7 @@ func speakerPage(a *App) View {
 			Do: func(a *App, r *Row) { a.cfg.SoundVol = r.Num; a.applySound(); a.save(); a.snd.Play("select") }},
 		&Row{Label: "Start-up chime", Kind: rowToggle, On: a.cfg.Jingle,
 			Do: func(a *App, r *Row) { a.cfg.Jingle = r.On; a.save() }},
-		&Row{Label: "Play the chime", Kind: rowAction, Do: func(a *App, r *Row) { a.snd.Play("startup") }},
+		&Row{Label: "Play the chime", Kind: rowAction, Do: func(a *App, r *Row) { a.snd.Play(a.startupSound()) }},
 	)
 	return l
 }
@@ -927,7 +927,7 @@ func systemPage(a *App) View {
 			{Label: "Restart the launcher", Kind: rowAction, Do: func(a *App, r *Row) { restartSelf(a) }},
 			{Label: "Restart the device", Kind: rowAction, Do: func(a *App, r *Row) {
 				confirm(a, "RESTART?", "Restart the Cardputer now?", func() {
-					a.snd.Play("lock")
+					a.snd.Play("shutdown")
 					if err := reboot(); err != nil {
 						a.notify("Restart failed: "+err.Error(), true)
 					}
@@ -935,7 +935,7 @@ func systemPage(a *App) View {
 			}},
 			{Label: "Turn off", Kind: rowAction, Do: func(a *App, r *Row) {
 				confirm(a, "TURN OFF?", "Shut the Cardputer down now?", func() {
-					a.snd.Play("lock")
+					a.snd.Play("shutdown")
 					if err := powerOff(); err != nil {
 						a.notify("Shutdown failed: "+err.Error(), true)
 					}
@@ -973,8 +973,9 @@ func licencesPage() *RowList {
 		"Clock digits: Nintendo DS - Clock Numbers",
 		"  Font (c) 2026 zigaudrey, FontStruct",
 		"  Non-Commercial License: personal use only.",
-		"Sounds: Nintendo DSi UI Sounds pack",
-		"  (Helljumper); tones in code for the rest.",
+		"Sounds: Nintendo DS system sounds",
+		"  (gamerip, KHInsider / The Sounds",
+		"  Resource); (c) Nintendo.",
 		"cp0 UI kit from ZeroCode (keyboard, screen).",
 		"Go standard library (BSD-3-Clause).",
 	} {

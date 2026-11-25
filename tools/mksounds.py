@@ -1,52 +1,60 @@
-"""Convert the DSi UI sound pack for the launcher.
+"""Convert the Nintendo DS system sounds for the launcher.
 
-usage: py tools/mksounds.py "<folder with the DSi *.wav files>"
+usage: py tools/mksounds.py "<folder with the album's FLAC files>" [ffmpeg]
+Source: "Nintendo DS System Sounds (DS) (gamerip) (2004)" on downloads.khinsider.com (WAVs from
+The Sounds Resource): disc 1 = the DS menu (BIOS) sounds, disc 2 = DSi Internet Settings.
+Files keep the album's names, e.g. "1-25. Select.flac". Needs ffmpeg to decode.
 Writes assets/sounds/<event>.pcm: 16-bit little-endian mono at 32 kHz (the launcher's pacat
-stream format), trailing silence trimmed."""
-import os, sys, wave
+stream format), leading and trailing silence trimmed, levels brought into a common range."""
+import os, subprocess, sys
 import numpy as np
 
 src = sys.argv[1]
+ffmpeg = sys.argv[2] if len(sys.argv) > 2 else "ffmpeg"
 here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = os.path.join(here, "assets", "sounds")
 os.makedirs(out, exist_ok=True)
 RATE = 32000
 
-# launcher event -> pack file (following the pack's own Steam Deck mapping)
+# launcher event -> album file (by what the DS plays them for)
 EVENTS = {
-    "move": "DSi Guide Move.wav",        # navigation
-    "tick": "DSi Type.wav",              # typing
-    "bump": "DSi Navigation 1.wav",      # end of a list (bumper end)
-    "select": "DSi Select.wav",          # default activation / into detail
-    "back": "DSi Back.wav",              # out of detail / hide modal
-    "open": "DSi Settings.wav",          # side menu / tab transition
-    "modal": "DSi Guide Select.wav",     # show modal
-    "toggle-on": "DSi Guide Select.wav",
-    "toggle-off": "DSi Guide Select.wav",
-    "launch": "DSi Confirm.wav",         # launch game
-    "notice": "DSi Online.wav",          # message toast
-    "error": "DSi Navigation 3.wav",
-    "lock": "DSi Settings.wav",
-    "unlock": "DSi Confirm.wav",
-    "alarm": "DSi Online.wav",
-    "startup": "DSi Confirm.wav",
+    "move": "1-09. Hover",                      # cursor moves over an icon
+    "tick": "1-12. Keyboard Down",              # typing
+    "bump": "1-11. Invalid",                    # end of a list / nothing there
+    "select": "1-25. Select",                   # choose
+    "back": "1-26. Settings Closecategory",     # leave a page
+    "open": "1-30. Settings Opencategory",      # open a page
+    "modal": "1-19. Pictochat Select",          # details / question pops up
+    "toggle-on": "1-28. Settings Increase",
+    "toggle-off": "1-27. Settings Decrease",
+    "increase": "1-28. Settings Increase",      # sliders and choices
+    "decrease": "1-27. Settings Decrease",
+    "launch": "1-03. Confirm",                  # start an app
+    "notice": "1-05. Downloadplay Found",       # message toast
+    "error": "1-08. Failure",
+    "lock": "1-17. Pictochat Leaveroom",
+    "unlock": "1-15. Pictochat Enterroom",
+    "alarm": "1-02. Alarm Ring",                # the DS alarm, looped while it rings
+    "alarm-exit": "1-01. Alarm Exit",
+    "startup": "1-33. Startup",
+    "startup-birthday": "1-34. Startup Birthday",
+    "shutdown": "1-32. Shutdown",
+    "loading": "2-11. Seq",                     # one blip per turn of the loading squares
 }
 
 def load(path):
-    w = wave.open(path)
-    n, ch, sw, rate = w.getnframes(), w.getnchannels(), w.getsampwidth(), w.getframerate()
-    assert sw == 2, "16-bit only"
-    a = np.frombuffer(w.readframes(n), dtype="<i2").astype(np.float64).reshape(-1, ch).mean(axis=1)
-    # resample by linear interpolation
-    t = np.arange(0, len(a) * RATE / rate) * rate / RATE
-    a = np.interp(t, np.arange(len(a)), a)
-    # trim trailing near-silence, keep a short fade
+    raw = subprocess.run([ffmpeg, "-v", "error", "-i", path, "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
+                         capture_output=True, check=True).stdout
+    a = np.frombuffer(raw, dtype="<i2").astype(np.float64)
     loud = np.nonzero(np.abs(a) > 60)[0]
-    if len(loud):
-        a = a[: min(len(a), loud[-1] + int(0.01 * RATE))]
+    if len(loud):  # trim silence, keep 2 ms before and 10 ms after
+        a = a[max(0, loud[0] - int(0.002 * RATE)): min(len(a), loud[-1] + int(0.01 * RATE))]
+    peak = np.abs(a).max() / 32768
+    if peak > 0:  # quiet clicks up to 0.25 peak, loud ones down to 0.6
+        a *= min(max(peak, 0.25), 0.6) / peak
     return np.clip(np.round(a), -32768, 32767).astype("<i2")
 
 for ev, name in EVENTS.items():
-    pcm = load(os.path.join(src, name))
+    pcm = load(os.path.join(src, name + ".flac"))
     open(os.path.join(out, ev + ".pcm"), "wb").write(pcm.tobytes())
-    print(f"{ev:11s} <- {name:22s} {len(pcm)/RATE:.2f}s")
+    print(f"{ev:16s} <- {name:30s} {len(pcm)/RATE:5.2f}s")

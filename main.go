@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "0.6.6"
+const version = "0.6.7"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -84,6 +84,9 @@ type App struct {
 	shotN    int
 	launch   *Entry // set while an app runs
 	vol      volState
+
+	loadingOn bool // the busy screen's loading squares were on screen last frame
+	loadingN  int  // which turn of them the last blip was for
 }
 
 func main() {
@@ -122,7 +125,7 @@ func main() {
 	a.lastKey = time.Now()
 	a.stack = []View{newHome(a)}
 	if a.cfg.Jingle && !a.sim {
-		a.snd.Play("startup")
+		a.snd.Play(a.startupSound())
 	}
 	a.loop()
 	a.shutdown()
@@ -494,13 +497,37 @@ func (a *App) draw() {
 	}
 	if msg := a.busy(); msg != "" {
 		a.drawBusy(msg)
-	} else if time.Now().Before(a.toastTill) {
-		a.drawToast()
+		a.loadingBlip()
+	} else {
+		a.loadingOn = false
+		if time.Now().Before(a.toastTill) {
+			a.drawToast()
+		}
 	}
 	if time.Now().Before(a.vol.shownTill) {
 		a.drawVolume()
 	}
 	a.scr.Show()
+}
+
+// loadingBlip plays the DS loading blip while the busy screen's yellow squares turn: as soon as
+// it appears, then once per turn (loadingTurn), in step with dsLoading (both run on a.t).
+func (a *App) loadingBlip() bool {
+	turn := int(a.t / loadingTurn)
+	blip := !a.loadingOn || turn != a.loadingN
+	if blip {
+		a.snd.Play("loading")
+	}
+	a.loadingOn, a.loadingN = true, turn
+	return blip
+}
+
+// startupSound is the DS start-up chime, or its birthday version on the user's birthday.
+func (a *App) startupSound() string {
+	if a.cfg.isBirthday(time.Now()) {
+		return "startup-birthday"
+	}
+	return "startup"
 }
 
 // barX are the centres of the key bar slots, over the number keys 4 5 6 7 8.

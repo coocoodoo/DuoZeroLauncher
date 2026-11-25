@@ -124,6 +124,14 @@ func (l *RowList) Key(a *App, k cp0.Key) {
 	}
 }
 
+// stepSound is the DS settings sound for a value going up or down.
+func stepSound(d int) string {
+	if d > 0 {
+		return "increase"
+	}
+	return "decrease"
+}
+
 func (l *RowList) adjust(a *App, r *Row, d int) {
 	switch r.Kind {
 	case rowSlider:
@@ -134,7 +142,7 @@ func (l *RowList) adjust(a *App, r *Row, d int) {
 			return
 		}
 		r.Num = n
-		a.snd.Play("move")
+		a.snd.Play(stepSound(d))
 		if r.Do != nil {
 			r.Do(a, r)
 		}
@@ -143,7 +151,7 @@ func (l *RowList) adjust(a *App, r *Row, d int) {
 			return
 		}
 		r.Choice = (r.Choice + d + len(r.Choices)) % len(r.Choices)
-		a.snd.Play("move")
+		a.snd.Play(stepSound(d))
 		if r.Do != nil {
 			r.Do(a, r)
 		}

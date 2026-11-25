@@ -1,1 +1,0 @@
-Sounds from the Nintendo DSi menu and a few system applications like Pictochat, System Settings, and the DSiWare Help guide found in all DSiWare applications. 3DS Soundpack coming soon! Also maybe even some DSi system music tracks as well!

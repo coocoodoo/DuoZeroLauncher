@@ -344,8 +344,12 @@ func (g *G) dsAlert(x, y, w, h int) {
 
 // dsLoading draws the 3x3 loading squares (3 px, 1 px apart) at (x, y): the centre stays lit
 // while a three-square gap chases round, one step every 1/15 s (533 ms a turn).
+// loadingTurn is how long the loading squares take to go round once (seconds, from ds.css); the
+// DS loading blip plays once per turn (App.loadingBlip).
+const loadingTurn = 0.5333
+
 func (g *G) dsLoading(x, y int, t float64) {
-	step := int(math.Mod(t, 0.5333)/0.5333*8) % 8
+	step := int(math.Mod(t, loadingTurn)/loadingTurn*8) % 8
 	// off steps for squares 1..9 (5 = centre, always on), from ds.css's keyframes
 	off := map[int][]int{1: {3, 4, 5}, 2: {4, 5, 6}, 3: {5, 6, 7}, 4: {2, 3, 4}, 6: {0, 6, 7},
 		7: {1, 2, 3}, 8: {0, 1, 2}, 9: {0, 1, 7}}

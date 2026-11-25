@@ -1,7 +1,7 @@
 package main
 
-// Menu sounds: the DSi UI sound pack (assets/sounds/*.pcm, made by tools/mksounds.py) for the
-// events it covers, synthesized tones for anything else. A small mixer plays overlapping sounds
+// Menu sounds: the Nintendo DS system sounds (assets/sounds/*.pcm, made by tools/mksounds.py;
+// see assets/sounds/SOURCE.md) for the events they cover, synthesized tones for anything else. A small mixer plays overlapping sounds
 // into one pacat stream named after the launcher (so the sound server keeps a volume of its own),
 // writing 20 ms blocks only while something is playing.
 
@@ -192,6 +192,24 @@ func (s *Sound) Play(name string) {
 	}
 }
 
+// Stop cuts a playing effect off.
+func (s *Sound) Stop(name string) {
+	s.mu.Lock()
+	kept := s.voices[:0]
+	for _, v := range s.voices {
+		if v.name != name {
+			kept = append(kept, v)
+		}
+	}
+	s.voices = kept
+	s.mu.Unlock()
+}
+
+// Length is how long an effect plays.
+func (s *Sound) Length(name string) time.Duration {
+	return time.Duration(len(s.samples(name))) * time.Second / sampleRate // UI thread, like Play
+}
+
 func (s *Sound) SetVolume(v float64) { s.Volume = math.Max(0, math.Min(1, v)) }
 
 // note is one voice: start (s), frequency, length (s), loudness, timbre.
@@ -306,7 +324,8 @@ func writeSoundPreview(path string) error {
 	gap := make([]byte, sampleRate/2*2)
 	s := &Sound{cache: map[string][]int16{}}
 	for _, name := range []string{"startup", "move", "move", "move", "bump", "select", "back", "open", "modal",
-		"toggle-on", "launch", "notice", "tick", "error", "lock", "unlock", "alarm"} {
+		"toggle-on", "toggle-off", "increase", "decrease", "launch", "notice", "tick", "error", "lock", "unlock",
+		"loading", "loading", "loading", "shutdown", "alarm-exit", "startup-birthday", "alarm"} {
 		for _, v := range s.samples(name) {
 			pcm = binary.LittleEndian.AppendUint16(pcm, uint16(v))
 		}

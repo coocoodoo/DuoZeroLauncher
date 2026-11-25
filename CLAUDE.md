@@ -177,4 +177,15 @@ then reboot, or ask the user to restart it.
   easing jumped to the end. `Home.frameDT` counts a gap over 0.1 s as one frame
   (`home_test.go`). Scripted runs never showed it: they draw right before every key.
 
+## Local changes (0.6.7)
+
+- Sounds are now the Nintendo DS system sounds (KHInsider gamerip "Nintendo DS System Sounds",
+  FLACs converted by `tools/mksounds.py <folder> [ffmpeg]`; which plays when:
+  assets/sounds/SOURCE.md). New events: increase/decrease (sliders and choices, `stepSound`),
+  alarm-exit, startup-birthday (`App.startupSound`), shutdown (restart/turn off), loading.
+- Loading blip: `App.loadingBlip` (called from `draw` while the busy screen shows) plays
+  `loading` (DSi Internet Settings Seq #11, a 0.1 s blip) when the busy screen appears and once
+  per turn of the yellow squares (`loadingTurn`, the same 0.533 s cycle `dsLoading` uses).
+- The alarm loops the 14 s DS ring (`Sound.Length`) and stops it (`Sound.Stop`) with alarm-exit.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).
