@@ -36,6 +36,26 @@ func TestLoadingLoop(t *testing.T) {
 	if p := peak(0.54, 0.78); p > 50 {
 		t.Errorf("the quarter-second pause isn't silent (peak %d)", p)
 	}
+	// each swell circles the listener: the ticks behind the head (first and last) are muffled
+	// next to the same click in front
+	bright := func(from, to float64) float64 {
+		seg := clip[int(from*sampleRate):int(to*sampleRate)]
+		var d, e float64
+		for i := 1; i < len(seg); i++ {
+			x, p := float64(seg[i]), float64(seg[i-1])
+			d += (x - p) * (x - p)
+			e += x * x
+		}
+		return d / max(e, 1)
+	}
+	step := 0.5333 / 8
+	for _, pair := range [][2]int{{0, 2}, {3, 1}} { // behind vs in front, same DSi click
+		back := bright(float64(pair[0])*step, float64(pair[0]+1)*step)
+		front := bright(float64(pair[1])*step, float64(pair[1]+1)*step)
+		if back > 0.8*front {
+			t.Errorf("tick %d (behind) should sound duller than tick %d (in front): %.3f vs %.3f", pair[0]+1, pair[1]+1, back, front)
+		}
+	}
 	time.Sleep(400 * time.Millisecond) // it must still be playing (the clip loops)
 	s.Play("move")                     // other sounds don't cut it
 	s.Play("select")

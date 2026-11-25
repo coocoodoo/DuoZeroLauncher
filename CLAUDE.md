@@ -283,6 +283,15 @@ then reboot, or ask the user to restart it.
 - `Sound.stopLocked` waits for pacat (300 ms, then kills): a self-update's in-place restart used
   to leave it a zombie; `reapOrphans` collects old ones at start-up.
 
+## Local changes (0.7.10)
+
+- The loading ticks revolve around the listener on the mono speaker (the user: "Bingo"):
+  `mksounds.py` `orbit` runs each swell through a travel delay that swings +-5% pitch
+  (`LOADING_DOPPLER`; up coming round to the front, down going away) and a two-pole low-pass
+  that opens from 2 kHz behind the head to 14 kHz in front (`LOADING_BACK_HZ`/`LOADING_FRONT_HZ`).
+  One lap per swell, starting and ending behind, lined up with the sine swell.
+  `TestLoadingLoop` checks the ticks behind are duller than the same click in front.
+
 ## Local changes (0.7.9)
 
 - Loading ticks: each swell is now four ticks (half a turn, `LOADING_SWELL`) and the pause

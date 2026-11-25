@@ -39,7 +39,7 @@ EVENTS = {
     "startup": "1-33. Startup",
     "startup-birthday": "1-34. Startup Birthday",
     "shutdown": "1-32. Shutdown",
-    "loading": "2-11. Seq",                     # ticking in two sine swells + a pause, looped
+    "loading": "2-11. Seq",                     # ticking in two sine swells that circle you + a pause, looped
     # PictoChat
     "pc-send": "1-20. Pictochat Send",
     "pc-receive": "1-21. Pictochat Something0", # a guess: the album doesn't name it
@@ -64,12 +64,35 @@ LOADING_TURN = 0.5333          # one turn of the yellow loading squares (ds.go l
 LOADING_STEP = LOADING_TURN / 8  # one step of them
 LOADING_SWELL = 4               # ticks (steps) per swell: half a turn
 LOADING_PAUSE = 0.25            # silence after each pair of swells
+LOADING_DOPPLER = 0.05          # orbit: pitch +-5% as the ticks come round and go away
+LOADING_BACK_HZ = 2000          # orbit: behind the head the ticks are muffled to this
+LOADING_FRONT_HZ = 14000        # orbit: in front they are clear
+
+def orbit(x):
+    """Make one swell sound like it goes once round the listener, on a single speaker: it starts
+    behind the head (far, muffled), swings round to the front (near, clear) and goes away behind
+    again. Read through the travel delay of a source whose distance shrinks in front and grows
+    behind, the pitch bends up as it comes round and down as it leaves (Doppler), and a low-pass
+    that opens in front and closes behind stands in for the head's shadow."""
+    n = len(x)
+    i = np.arange(n, dtype=np.float64)
+    phi = 2 * np.pi * i / n                         # 0 = behind, pi = in front
+    k = LOADING_DOPPLER * n / (2 * np.pi)           # delay swing in samples for that bend
+    y = np.interp(i - k * (1 + np.cos(phi)), i, x, left=0.0)
+    fc = LOADING_BACK_HZ * (LOADING_FRONT_HZ / LOADING_BACK_HZ) ** ((1 - np.cos(phi)) / 2)
+    a = 1 - np.exp(-2 * np.pi * fc / RATE)
+    out, s1, s2 = np.zeros(n), 0.0, 0.0
+    for j in range(n):                              # two one-pole stages
+        s1 += a[j] * (y[j] - s1)
+        s2 += a[j] * (s1 - s2)
+        out[j] = s2
+    return out
 
 def loading_loop(pcm):
     """The DSi blip is two clicks ~71 ms apart. The loop ticks once per loading-square step
     (the two clicks taking turns), its volume swelling from nothing to full and back like a
     sine, the way the DS does: two swells of four ticks (half a turn) each, then a quarter
-    second of silence, and round again. The ticks sit half a step into each slot, so the
+    second of silence, and round again. Each swell also circles the listener (see orbit). The ticks sit half a step into each slot, so the
     loudest are in the middle and none falls on the silent ends of a swell."""
     a = pcm.astype(np.float64)
     loud = np.nonzero(np.abs(a) > 300)[0]
@@ -83,6 +106,7 @@ def loading_loop(pcm):
         c = clicks[k % 2][: n - at]
         swell[at:at + len(c)] += c
     swell *= np.sin(np.pi * np.arange(n) / n)  # 0 -> full -> 0
+    swell = orbit(swell)                       # once round the listener per swell
     loop = np.concatenate([swell, swell, np.zeros(int(round(LOADING_PAUSE * RATE)))])
     return np.clip(np.round(loop), -32768, 32767).astype("<i2")
 

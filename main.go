@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.7.9"
+const version = "0.7.10"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -579,7 +579,7 @@ func (a *App) draw() {
 
 // loadingSound runs the DSi loading ticks for exactly as long as the yellow loading squares are
 // on screen: the "loading" clip (one tick per square step, swelling in and out like a sine
-// twice, then a quarter second of silence) loops from its start when the squares appear, and
+// twice, each swell circling the listener, then a quarter second of silence) loops from its start when the squares appear, and
 // stops when they go. Returns whether it changed.
 func (a *App) loadingSound(showing bool) bool {
 	switch {

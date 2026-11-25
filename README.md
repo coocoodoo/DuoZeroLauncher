@@ -9,7 +9,9 @@ the right "touch screen" the apps. Sounds are the Nintendo DS system sounds (the
 System Sounds" gamerip on KHInsider; `tools/mksounds.py` converts its FLACs into `assets/sounds/`,
 see `assets/sounds/SOURCE.md` for which plays when), mixed so they can overlap. While the yellow
 loading squares show, the DSi's loading ticks play with them, one tick per step, swelling in and
-out like a sine twice, then a quarter-second pause, the way the DS does.
+out like a sine twice, then a quarter-second pause, the way the DS does. Each swell also seems to
+go once round you on the single speaker: muffled behind your head, clear in front, its pitch
+bending up as it comes round and down as it goes away.
 
 `tools/mkassets.py <ds.css-main/src/assets>` halves the textures to native pixels into `assets/`
 (embedded in the binary) and pre-renders the fonts into `fontdata.go`. The clock font is under the
