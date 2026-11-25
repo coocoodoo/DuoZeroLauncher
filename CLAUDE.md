@@ -283,4 +283,14 @@ then reboot, or ask the user to restart it.
 - `Sound.stopLocked` waits for pacat (300 ms, then kills): a self-update's in-place restart used
   to leave it a zombie; `reapOrphans` collects old ones at start-up.
 
+## Local changes (0.7.8)
+
+- Loading ticks, like the DS: `mksounds.py` `loading_loop` builds a 1.567 s pattern: a swell of
+  eight ticks (one per square step, half a step in, the two DSi clicks taking turns) under a
+  sin(pi t / T) envelope over one turn T = 0.5333 s, twice, then 0.5 s of silence. The peak is
+  the menu sound volume (the mixer applies it). `loadingSound` loops it from its start.
+- Measured on the device with 0.7.7, screen off: 4 Duo wake-ups/s and ~0.05% CPU (it was ~580/s
+  and ~2% before). Screen on, idle home: ~870/s and ~6% CPU, mostly the corner guard reading
+  the framebuffer 125 times a second; the Doctor's console fix switches the guard off.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

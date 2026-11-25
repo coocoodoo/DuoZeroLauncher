@@ -17,11 +17,26 @@ func TestLoadingLoop(t *testing.T) {
 	if !a.loadingSound(true) || a.loadingSound(true) {
 		t.Fatal("should start once when the squares appear, then keep going")
 	}
-	loopLen := len(s.samples("loading"))
-	if d := time.Duration(loopLen) * time.Second / sampleRate; d < 130*time.Millisecond || d > 137*time.Millisecond {
-		t.Fatalf("loop is %v, want two square steps (133 ms)", d)
+	clip := s.samples("loading")
+	// two swells of one square turn each, then half a second of silence
+	if d := time.Duration(len(clip)) * time.Second / sampleRate; d < 1550*time.Millisecond || d > 1580*time.Millisecond {
+		t.Fatalf("loop is %v, want 2 x 533 ms + 500 ms", d)
 	}
-	time.Sleep(400 * time.Millisecond) // three times the clip: it must still be playing
+	peak := func(from, to float64) int {
+		m := 0
+		for _, v := range clip[int(from*sampleRate):int(to*sampleRate)] {
+			m = max(m, int(v), -int(v))
+		}
+		return m
+	}
+	edge, middle := peak(0, 0.06), peak(0.22, 0.32)
+	if middle < 3*edge || middle == 0 {
+		t.Errorf("a swell should be loud in the middle (%d) and quiet at its start (%d)", middle, edge)
+	}
+	if p := peak(1.08, 1.55); p > 50 {
+		t.Errorf("the half-second pause isn't silent (peak %d)", p)
+	}
+	time.Sleep(400 * time.Millisecond) // it must still be playing (the clip loops)
 	s.Play("move")                     // other sounds don't cut it
 	s.Play("select")
 	s.Play("back")

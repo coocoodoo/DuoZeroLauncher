@@ -39,7 +39,7 @@ EVENTS = {
     "startup": "1-33. Startup",
     "startup-birthday": "1-34. Startup Birthday",
     "shutdown": "1-32. Shutdown",
-    "loading": "2-11. Seq",                     # looped, no gaps, while the loading squares show
+    "loading": "2-11. Seq",                     # ticking in two sine swells + a pause, looped
     # PictoChat
     "pc-send": "1-20. Pictochat Send",
     "pc-receive": "1-21. Pictochat Something0", # a guess: the album doesn't name it
@@ -60,20 +60,29 @@ def load(path):
         a *= min(max(peak, 0.25), 0.6) / peak
     return np.clip(np.round(a), -32768, 32767).astype("<i2")
 
-LOADING_STEP = 0.5333 / 8  # one step of the yellow loading squares (ds.go loadingTurn / 8)
+LOADING_TURN = 0.5333          # one turn of the yellow loading squares (ds.go loadingTurn)
+LOADING_STEP = LOADING_TURN / 8  # one step of them
+LOADING_PAUSE = 0.5             # silence after each pair of swells
 
 def loading_loop(pcm):
-    """The DSi blip is two clicks ~71 ms apart. Make a gapless loop of them with each click
-    starting one loading-square step after the last (click, pause, click, pause), so looped it
-    ticks evenly, once per step of the squares."""
+    """The DSi blip is two clicks ~71 ms apart. The loop ticks once per loading-square step
+    (the two clicks taking turns), its volume swelling from nothing to full and back like a
+    sine, the way the DS does: two swells of one turn each, then half a second of silence, and
+    round again. The ticks sit half a step into each slot, so the loudest are in the middle and
+    none falls on the silent ends of a swell."""
     a = pcm.astype(np.float64)
     loud = np.nonzero(np.abs(a) > 300)[0]
     starts = [loud[0]] + [i for p, i in zip(loud, loud[1:]) if i - p > int(0.01 * RATE)]
     assert len(starts) >= 2, "expected two clicks"
-    total = int(round(2 * LOADING_STEP * RATE))
-    first = total // 2
-    loop = np.concatenate([a[starts[0]:starts[0] + first], a[starts[1]:starts[1] + total - first]])
-    loop = np.pad(loop, (0, total - len(loop)))
+    clicks = [a[s:s + int(LOADING_STEP * RATE)] for s in starts[:2]]
+    turn = int(round(LOADING_TURN * RATE))
+    swell = np.zeros(turn)
+    for k in range(8):  # eight ticks per turn, half a step in
+        at = int(round((k + 0.5) * LOADING_STEP * RATE))
+        c = clicks[k % 2][: turn - at]
+        swell[at:at + len(c)] += c
+    swell *= np.sin(np.pi * np.arange(turn) / turn)  # 0 -> full -> 0
+    loop = np.concatenate([swell, swell, np.zeros(int(round(LOADING_PAUSE * RATE)))])
     return np.clip(np.round(loop), -32768, 32767).astype("<i2")
 
 for ev, name in EVENTS.items():

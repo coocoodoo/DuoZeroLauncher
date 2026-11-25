@@ -12,7 +12,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.7.7"
+const version = "0.7.8"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -579,14 +578,13 @@ func (a *App) draw() {
 }
 
 // loadingSound runs the DSi loading ticks for exactly as long as the yellow loading squares are
-// on screen: the "loading" clip (two ticks, one square step apart) loops with no gaps, started
-// in step with dsLoading (both run on a.t), and stops when the squares go. Returns whether it
-// changed.
+// on screen: the "loading" clip (one tick per square step, swelling in and out like a sine
+// twice, then half a second of silence) loops from its start when the squares appear, and
+// stops when they go. Returns whether it changed.
 func (a *App) loadingSound(showing bool) bool {
 	switch {
 	case showing && !a.loadingOn:
-		period := 2 * loadingTurn / 8 // the clip: two steps of the squares
-		a.snd.Loop("loading", math.Mod(a.t, period)/period)
+		a.snd.Loop("loading", 0)
 	case !showing && a.loadingOn:
 		a.snd.Stop("loading")
 	default:
