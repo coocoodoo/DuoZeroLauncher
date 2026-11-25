@@ -66,9 +66,10 @@ type Screen struct {
 	logPath string
 	log     []string
 
-	mu    sync.Mutex  // guards buf and writes to f
-	shown atomic.Bool // a frame has been sent
-	guard atomic.Bool // repair the console-cursor corner (off while another app has the screen)
+	mu        sync.Mutex  // guards buf and writes to f
+	shown     atomic.Bool // a frame has been sent
+	guard     atomic.Bool // repair the console-cursor corner (off while another app has the screen)
+	guardWake chan struct{}
 }
 
 // Open opens the LCD (CP0_FB overrides the device) and starts listening for quit signals.
@@ -94,7 +95,8 @@ func Open() *Screen {
 	if err != nil {
 		f = nil
 	}
-	s := &Screen{f: f, stride: stride, Px: make([]uint16, W*H), buf: make([]byte, stride*H), logPath: os.Getenv("CP0_TEXTLOG")}
+	s := &Screen{f: f, stride: stride, Px: make([]uint16, W*H), buf: make([]byte, stride*H), logPath: os.Getenv("CP0_TEXTLOG"),
+		guardWake: make(chan struct{}, 1)}
 	s.guard.Store(true)
 	if f != nil && real {
 		go s.guardCorner()
@@ -104,17 +106,33 @@ func Open() *Screen {
 
 // GuardCorner turns the corner repair on or off. Turn it off before handing the screen to
 // another program, and back on when it returns.
-func (s *Screen) GuardCorner(on bool) { s.guard.Store(on) }
+func (s *Screen) GuardCorner(on bool) {
+	s.guard.Store(on)
+	if on {
+		select {
+		case s.guardWake <- struct{}{}:
+		default:
+		}
+	}
+}
 
 // guardCorner: the Linux text console still runs under the app, and its blinking cursor
 // draws an 8x8 black cell in the bottom-left corner between frames. Every 8 ms, put back
-// whatever the last frame had there. The region covers the console's last text rows.
+// whatever the last frame had there. The region covers the console's last text rows. While it
+// is off the ticker stops and the goroutine sleeps (it used to tick 125 times a second anyway).
 func (s *Screen) guardCorner() {
 	const y0, cols = 150, 16 * 2 // rows 150-169, the 16 left-most pixels
 	region := make([]byte, (H-y0)*s.stride)
 	t := time.NewTicker(8 * time.Millisecond)
 	defer t.Stop()
-	for range t.C {
+	for {
+		if !s.guard.Load() {
+			t.Stop()
+			<-s.guardWake
+			t.Reset(8 * time.Millisecond)
+			continue
+		}
+		<-t.C
 		if !s.guard.Load() || !s.shown.Load() {
 			continue
 		}

@@ -7,3 +7,4 @@ package main
 func kernel() string  { return "?" }
 func storage() string { return "?" }
 func execSelf(string) {}
+func reapOrphans()    {}

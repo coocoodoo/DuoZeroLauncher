@@ -34,3 +34,16 @@ func storage() string {
 }
 
 func execSelf(self string) { syscall.Exec(self, os.Args, os.Environ()) }
+
+// reapOrphans collects children that already ended but were never waited for: after Duo
+// restarts itself in place (a self-update), the old program's sound process is left a zombie
+// under the new one. Call it before Duo starts any process of its own.
+func reapOrphans() {
+	for {
+		var ws syscall.WaitStatus
+		pid, err := syscall.Wait4(-1, &ws, syscall.WNOHANG, nil)
+		if err != nil || pid <= 0 {
+			return
+		}
+	}
+}

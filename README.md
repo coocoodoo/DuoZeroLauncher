@@ -26,10 +26,14 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   CLI, Python, SSH, IP Panel, Calculator, PictoChat, Settings. Arrows move (Up/Down jump 5), keys 4–8:
   OPEN, FAVE (pin to the front), INFO (details, hide, uninstall), SETTINGS, LOCK. Tab shows the
   calendar. Leave via Settings > Launcher.
-- **Tab is the power button:** hold it anywhere to lock and switch the screen off. While it is
-  off nothing but Tab wakes it, like a phone; the volume keys still change the volume. (The
-  Cardputer's backlight still glows at 0%, so Duo paints the screen black first; with the
-  Doctor's "terminal kept off the screen" fix it also powers the panel fully down.) Tab wakes it to the lock screen, and a second
+- **Tab is the power button:** hold it anywhere to lock and switch the screen off, fully dark.
+  While it is off nothing but Tab wakes it, like a phone; the volume keys still change the
+  volume. (Like M5's own launcher, Duo holds line 9 of M5's I/O expander low, without which the
+  backlight still glows at 0%. With the Doctor's "terminal kept off the screen" fix it also
+  powers the panel down.)
+- **Saves battery while the screen is off:** the sound stream closes, the status bar stops
+  polling Wi-Fi and Bluetooth, and Duo wakes the CPU every 2 s instead of hundreds of times a
+  second; Tab brings everything back. Tab wakes it to the lock screen, and a second
   Tab unlocks (or asks for your PIN). The screen's own idle timeout switches it off the same way.
   The chosen app's tile eases up out of the strip in your favourite colour with a soft shadow
   around it, and the one you scrolled away from eases back down.
@@ -74,6 +78,7 @@ for your password once. Over SSH: `~/apps/duo-launcher/app --doctor` reports, an
 | Terminal kept off the screen | `duo-console.service`: tty1 in graphics mode, so the text console never draws over Duo and the screen can power fully off | yes |
 | Device name in /etc/hosts | the `127.0.1.1` line (sudo stops stalling ~10 s) | yes |
 | Bluetooth audio allowed | WirePlumber `90-bluetooth-no-seat.conf` | no |
+| Screen goes fully dark | Duo holds M5's backlight line itself (the gpio group, no root) | no |
 | Go, ZeroCode helper, brightness | reported only | |
 
 The files it installs are in `device/` (built into Duo).

@@ -19,10 +19,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-const version = "0.7.6"
+const version = "0.7.7"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -86,8 +87,9 @@ type App struct {
 	launch   *Entry // set while an app runs
 	vol      volState
 
-	loadingOn bool // the loading ticks are playing (the busy screen's squares are on screen)
-	blanked   bool // the panel is powered down (screenOff)
+	loadingOn bool        // the loading ticks are playing (the busy screen's squares are on screen)
+	blanked   bool        // the panel is powered down (screenOff)
+	asleep    atomic.Bool // the screen is off: background work pauses to save battery
 }
 
 func main() {
@@ -108,10 +110,17 @@ func main() {
 		}
 		return
 	}
+	if os.Getenv("DSL_SIM") == "" {
+		reapOrphans() // sound processes left over from before a self-update's restart
+	}
 	a := &App{cfg: loadConfig(), snd: newSound(), status: &Status{Battery: -1}, start: time.Now(),
 		work: make(chan func(), 16), pressSlot: -1, progress: -1}
 	a.scr = cp0.Open()
 	a.g = newG(a.scr)
+	if os.Getenv("DSL_SIM") == "" {
+		holdBacklightLine() // like M5's launcher: then brightness 0 is really dark
+	}
+	a.guardCorner(true)
 	if sim := os.Getenv("DSL_SIM"); sim != "" {
 		a.sim = true
 		a.simShots = os.Getenv("DSL_SHOTS")
@@ -156,6 +165,9 @@ func (a *App) statusLoop() {
 	n := 0
 	for !a.quit {
 		time.Sleep(5 * time.Second)
+		if a.asleep.Load() {
+			continue // screen off: nothing to show, no nmcli or bluetoothctl runs
+		}
 		n++
 		a.status.refresh(n%3 == 0)
 		a.dirty = true
@@ -274,7 +286,7 @@ func (a *App) loop() {
 			wait = 250
 		}
 		if a.dimLevel == 2 {
-			wait = 500 // asleep: nothing to animate
+			wait = 2000 // asleep: nothing to animate; wake up rarely to save battery
 		}
 		keys := a.keys.Poll(wait)
 		a.now = time.Now()
@@ -413,13 +425,18 @@ func (a *App) screenOff() {
 	a.g.noClip()
 	a.g.rect(0, 0, W, H, cBlack)
 	a.scr.Show()
+	holdBacklightLine() // (if another program had it at start-up)
 	setBacklight(0)
-	a.scr.GuardCorner(false)
+	a.guardCorner(false)
 	if panelPowerOff() {
 		a.blanked = a.scr.Blank(true)
 	}
 	a.dimLevel = 2
 	a.loadingSound(false)
+	// save battery while off: the sound stream closes (the audio device can sleep), the status
+	// bar stops polling, the main loop wakes every 2 s instead of every 0.5 s
+	a.snd.Close()
+	a.asleep.Store(true)
 }
 
 // screenOn powers the panel back up (the brightness is restored by wake).
@@ -428,7 +445,15 @@ func (a *App) screenOn() {
 		a.scr.Blank(false)
 		a.blanked = false
 	}
-	a.scr.GuardCorner(true)
+	a.guardCorner(true)
+	a.asleep.Store(false)
+	go a.status.refresh(true) // the status bar was not polled while the screen was off
+}
+
+// guardCorner turns the corner repair on or off. It isn't needed at all once the Doctor's
+// console fix is in (the console can't draw then), which saves its 125 wake-ups a second.
+func (a *App) guardCorner(on bool) {
+	a.scr.GuardCorner(on && !fileExists(consoleMarker))
 }
 
 func (a *App) dispatch(k cp0.Key) {
@@ -792,7 +817,7 @@ func (a *App) runApp(e *Entry, argv []string, env []string) {
 		err = cmd.Wait()
 		a.keys.pause(false)
 	}
-	a.scr.GuardCorner(true)
+	a.guardCorner(true)
 	a.launch = nil
 	a.tabArmed, a.tabHeld = false, false
 	a.lastKey = time.Now()
@@ -893,6 +918,7 @@ func (a *App) shutdown() {
 	a.quit = true
 	a.scr.GuardCorner(false)
 	a.snd.Close()
+	releaseBacklightLine() // the stock launcher (or the next Duo) takes it from here
 }
 
 // ---- keys: the real keyboard or a script ----

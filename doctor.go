@@ -135,6 +135,18 @@ func doctorChecks() []*docCheck {
 	}
 	cs = append(cs, bt)
 
+	bl := &docCheck{Key: "blackout", Name: "Screen goes fully dark",
+		Why: "Duo can't reach M5's backlight switch (line 9 of the m5ioe1 chip), so the screen still glows when off"}
+	switch st := backlightLineStatus(); st {
+	case "held", "in use", "free": // held by this Duo, by the running Duo, or free for it to hold
+		bl.State = docOK
+	case "":
+		bl.State = docNA
+	default:
+		bl.State, bl.Why = docInfo, bl.Why+" ("+st+")"
+	}
+	cs = append(cs, bl)
+
 	cs = append(cs,
 		&docCheck{Key: "go", Name: "Go for updates", Why: "Check for updates builds Duo with Go in ~/.local/go",
 			State: state(exists(filepath.Join(home, ".local/go/bin/go")), docInfo)},

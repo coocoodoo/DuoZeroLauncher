@@ -266,4 +266,21 @@ then reboot, or ask the user to restart it.
   embedded from `device/` (`deviceFS`). Tests: `doctor_test.go` (`sh -n` on the root script runs
   where `sh` exists, e.g. on the device).
 
+## Local changes (0.7.7)
+
+- Truly dark: the backlight's supply (`backlight-vcc`) is a fixed always-on regulator, dimming is
+  PWM channel 3 of M5's I/O expander (i2c 1-004f, "m5ioe1"), and M5's stock launcher logs
+  "[BOOT] set m5ioe1 line 9 low" then restores the brightness. Without that (Duo as home
+  screen) brightness 0 still glows. `backlight_linux.go` holds line 9 low for Duo's whole life
+  (GPIO v2 chardev ioctl in pure Go, the gpio group is enough; struct layout checked by
+  `backlight_linux_test.go`); `shutdown` lets it go. Tested by the user: line 9 low = fully dark
+  at 0, normal brightness otherwise.
+- Battery while the screen is off (`asleep`): the sound stream closes, `statusLoop` skips its
+  nmcli/bluetoothctl polling (one refresh on wake), the main loop waits 2 s per turn, and the
+  corner guard's ticker really stops (`cp0` guardWake; before, it ticked 125/s even when off:
+  ~580 Duo wake-ups/s were measured while asleep). With the Doctor's console fix the guard isn't
+  needed at all (`App.guardCorner`).
+- `Sound.stopLocked` waits for pacat (300 ms, then kills): a self-update's in-place restart used
+  to leave it a zombie; `reapOrphans` collects old ones at start-up.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

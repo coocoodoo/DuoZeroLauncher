@@ -158,8 +158,18 @@ func (s *Sound) stopLocked() {
 		s.in = nil
 	}
 	if s.cmd != nil {
-		go s.cmd.Wait()
+		// wait for pacat to go (it ends on EOF) before carrying on: if Duo restarts itself right
+		// after, a goroutine left to do it never runs and pacat stays a zombie
+		cmd := s.cmd
 		s.cmd = nil
+		done := make(chan struct{})
+		go func() { cmd.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(300 * time.Millisecond):
+			cmd.Process.Kill()
+			<-done
+		}
 	}
 }
 
