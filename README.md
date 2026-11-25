@@ -26,7 +26,8 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
 ## What it does
 
 - **Home:** every app the system launcher lists (its `.desktop` folder), plus built-ins: Store,
-  CLI, Python, SSH, IP Panel, Calculator, PictoChat, Settings. Arrows move (Up/Down jump 5), keys 4–8:
+  CLI, Python, SSH, IP Panel, Calculator, PictoChat, Download Play, Settings. Left/Right move,
+  Up shows your recently opened apps and Down all of them; Space or `/` searches by name. Keys 4–8:
   OPEN, FAVE (pin to the front), INFO (details, hide, uninstall), SETTINGS, LOCK. Tab shows the
   calendar. Leave via Settings > Launcher.
 - **Tab is the power button:** hold it anywhere to lock and switch the screen off, fully dark.
@@ -44,6 +45,12 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
 - **Volume keys everywhere in Duo:** Fn+S quieter, Fn+D louder (and unmute), Fn+A mute, in 5%
   steps (hold to keep going). A volume meter shows the level for a moment; it works on the lock
   screen too and wakes a dimmed screen.
+- **Brightness keys everywhere in Duo:** Fn+U dimmer, Fn+I brighter, in tenths (never below 5%),
+  with a meter like the volume one.
+- **Screenshots:** Fn+J (PrtSc) saves the screen to `~/Screenshots`, in Duo and inside other apps.
+- **Low-battery warning:** a DS-style alert at 15% and again at 5%.
+- **Download Play:** share an app with another Cardputer on the same Wi-Fi. The sender shows a
+  4-digit code; the receiver picks the app, types the code, and Duo downloads, checks and installs it.
 - **Launching:** the chosen tile rises while everything else fades to white and the app's name
   fades in under it; then the app gets the screen and keyboard, and gives them back when it exits.
   CLI, Python and SSH open in Tiny Terminal (through a `$SHELL` wrapper).

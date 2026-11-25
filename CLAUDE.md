@@ -283,6 +283,31 @@ then reboot, or ask the user to restart it.
 - `Sound.stopLocked` waits for pacat (300 ms, then kills): a self-update's in-place restart used
   to leave it a zombie; `reapOrphans` collects old ones at start-up.
 
+## Local changes (0.8.0)
+
+- Brightness keys (`brightness.go`): Fn+U `BRIGHTNESSDOWN` (224), Fn+I `BRIGHTNESSUP` (225), in
+  tenths, never below 5%, with a meter like the volume one. Ignored while the screen is off;
+  a dimmed screen wakes first. Settings > Screen follows.
+- Screenshots (`screenshot.go`): Fn+J `PRINT` (KEY_SYSRQ 99 or KEY_PRINT 210) saves the frame as
+  `~/Screenshots/duo-YYYYMMDD-HHMMSS.png` (`DSL_SCREENSHOTS` overrides) with a white flash.
+  While another app runs, `runApp` starts `watchScreenshots`, which reads only the keyboard
+  events Duo would drop anyway and copies the framebuffer (`cp0.Screen.Capture`). The key codes
+  are the standard ones and still need checking on the device (`evtest`).
+- Low battery (`battery_warn.go`): an alert at 15% and again at 5% (`batWarned`), reset when
+  charging or above 20%; waits while the screen is off. `DSL_BATTERY=12` fakes the level.
+- Home: Up shows the recently opened apps (`recentApps`, newest first, up to 8), Down all of
+  them again (`Home.recent`, `allKey`); this replaces Up/Down jumping 5. Built-ins now count as
+  used when opened. Space or "/" opens search (`search.go`): prefix, then word start, then
+  substring, then letters in order; Tab next match, Enter open, Esc close.
+- Download Play (`dlplay.go`, built-in `builtin:dlplay`): share a ZeroCode app (folder in
+  ~/apps) with a Cardputer on the same Wi-Fi. The sender packs it (tar.gz, no `*.prev`, `.test`,
+  `.git` or links), announces `DUODL1 {json}` on UDP 47131 every 2 s and serves `/info` and
+  `/get?code=NNNN` on TCP 47130 (5 wrong codes per address, then refused). The receiver lists
+  offers, asks for the 4-digit code, checks size and SHA-256, unpacks with path checks into
+  ~/apps/<slug> (an existing copy is kept as `<slug>.prev-<time>` after a confirm) and runs
+  `zc-app install`. "Receive from an address" for networks that block broadcasts.
+  `dlplay_test.go` shares an app over loopback.
+
 ## Local changes (0.7.10)
 
 - The loading ticks revolve around the listener on the mono speaker (the user: "Bingo"):

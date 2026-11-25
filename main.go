@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.7.10"
+const version = "0.8.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -72,19 +72,22 @@ type App struct {
 	sudoPW    string
 	sudoUntil time.Time
 
-	busyMu   sync.Mutex
-	busyText string
-	progress float64 // 0..1 shows a progress bar under the busy message; < 0 hides it
-	jobGen   int     // bumped when Esc cancels a job, so its result is dropped
-	work     chan func()
-	quit     bool
-	leave    bool // chosen "Back to the system launcher": exit with exitLeave
-	dirty    bool
-	sim      bool
-	simShots string
-	shotN    int
-	launch   *Entry // set while an app runs
-	vol      volState
+	busyMu     sync.Mutex
+	busyText   string
+	progress   float64 // 0..1 shows a progress bar under the busy message; < 0 hides it
+	jobGen     int     // bumped when Esc cancels a job, so its result is dropped
+	work       chan func()
+	quit       bool
+	leave      bool // chosen "Back to the system launcher": exit with exitLeave
+	dirty      bool
+	sim        bool
+	simShots   string
+	shotN      int
+	launch     *Entry // set while an app runs
+	vol        volState
+	bri        briState
+	flashUntil time.Time // screenshot flash
+	batWarned  int       // low-battery warning shown: 0 none, 1 low, 2 almost empty
 
 	loadingOn bool        // the loading ticks are playing (the busy screen's squares are on screen)
 	blanked   bool        // the panel is powered down (screenOff)
@@ -314,6 +317,7 @@ func (a *App) loop() {
 			}
 		}
 		a.idle()
+		a.checkBattery()
 		a.checkAlarm()
 		if a.dimLevel < 2 && (a.dirty || a.animating() || a.now.Sub(frame) >= time.Second) {
 			a.draw()
@@ -362,6 +366,22 @@ func (a *App) handle(k cp0.Key) {
 		}
 	}
 	if k.Released {
+		return
+	}
+	if isBrightnessKey(k) { // Fn+U / Fn+I: on every screen; not while it is off
+		if a.dimLevel == 2 {
+			return
+		}
+		if a.dimLevel == 1 {
+			a.wake()
+		}
+		a.brightnessKey(k)
+		return
+	}
+	if isScreenshotKey(k) { // Fn+J: on every screen that is showing
+		if a.dimLevel == 0 {
+			a.screenshot()
+		}
 		return
 	}
 	if isVolumeKey(k) { // Fn+S / Fn+D / Fn+A: on every screen; a dimmed one wakes to show the level
@@ -574,6 +594,12 @@ func (a *App) draw() {
 	if time.Now().Before(a.vol.shownTill) {
 		a.drawVolume()
 	}
+	if time.Now().Before(a.bri.shownTill) {
+		a.drawBrightness()
+	}
+	if time.Now().Before(a.flashUntil) { // screenshot taken: a white flash (not in the saved image)
+		g.shade(0, 0, W, H, cWhite, 0.7)
+	}
 	a.scr.Show()
 }
 
@@ -706,6 +732,10 @@ func loader(g *G, cx, cy int, t float64) { g.dsLoading(cx-5, cy-5, t) }
 // ---- launching apps ----
 
 func (a *App) open(e *Entry) {
+	if e.Builtin != "" { // built-ins count as recently opened too (apps are marked in runApp)
+		a.cfg.markUsed(e.Key)
+		a.save()
+	}
 	switch e.Builtin {
 	case "settings":
 		if !a.launchBuiltin(e) {
@@ -724,6 +754,12 @@ func (a *App) open(e *Entry) {
 			a.snd.Play("select")
 		}
 		a.push(newCalc(a))
+		return
+	case "dlplay":
+		if !a.launchBuiltin(e) {
+			a.snd.Play("open")
+		}
+		a.push(newDownloadPlay(a))
 		return
 	case "pictochat":
 		if !a.launchBuiltin(e) {
@@ -812,7 +848,9 @@ func (a *App) runApp(e *Entry, argv []string, env []string) {
 	err := cmd.Start()
 	if err == nil {
 		a.keys.pause(true)
+		stopShots := a.watchScreenshots() // Fn+J still takes screenshots inside the app
 		err = cmd.Wait()
+		stopShots()
 		a.keys.pause(false)
 	}
 	a.guardCorner(true)

@@ -104,6 +104,26 @@ func Open() *Screen {
 	return s
 }
 
+// Capture reads back what is on the panel now (whoever drew it) as RGB565 pixels.
+func (s *Screen) Capture() ([]uint16, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.f == nil {
+		return nil, os.ErrNotExist
+	}
+	raw := make([]byte, s.stride*H)
+	if _, err := s.f.ReadAt(raw, 0); err != nil {
+		return nil, err
+	}
+	px := make([]uint16, W*H)
+	for y := 0; y < H; y++ {
+		for x := 0; x < W; x++ {
+			px[y*W+x] = binary.LittleEndian.Uint16(raw[y*s.stride+x*2:])
+		}
+	}
+	return px, nil
+}
+
 // GuardCorner turns the corner repair on or off. Turn it off before handing the screen to
 // another program, and back on when it returns.
 func (s *Screen) GuardCorner(on bool) {
@@ -345,7 +365,9 @@ var sym = map[int]rune{26: '!', 27: '@', 39: '#', 40: '$', 41: '%', 43: '^', 51:
 
 var special = map[int]string{1: "ESC", 14: "BACKSPACE", 15: "TAB", 28: "ENTER", 96: "ENTER", 57: "SPACE", 103: "UP",
 	108: "DOWN", 105: "LEFT", 106: "RIGHT", 102: "HOME", 107: "END", 104: "PGUP", 109: "PGDN", 111: "DELETE",
-	113: "MUTE", 114: "VOLUMEDOWN", 115: "VOLUMEUP"} // Fn+A, Fn+S, Fn+D on the Cardputer
+	113: "MUTE", 114: "VOLUMEDOWN", 115: "VOLUMEUP", // Fn+A, Fn+S, Fn+D on the Cardputer
+	224: "BRIGHTNESSDOWN", 225: "BRIGHTNESSUP", // Fn+U, Fn+I
+	99: "PRINT", 210: "PRINT"} // Fn+J (PrtSc): KEY_SYSRQ or KEY_PRINT depending on the keymap
 
 var nav = map[int]string{33: "UP", 45: "DOWN", 44: "LEFT", 46: "RIGHT"} // plain F, X, Z, C
 

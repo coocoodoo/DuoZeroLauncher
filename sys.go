@@ -125,6 +125,11 @@ func (s *Status) refresh(slow bool) {
 	}
 	ip := primaryIP()
 	s.mu.Lock()
+	if v := os.Getenv("DSL_BATTERY"); v != "" { // scripted tests: a pretend charge level
+		if n, err := strconv.Atoi(v); err == nil {
+			bat, charging = n, false
+		}
+	}
 	s.Battery, s.Charging, s.WifiLevel, s.IP = bat, charging, level, ip
 	if wifiOn {
 		s.WifiOn = true

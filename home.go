@@ -38,6 +38,10 @@ type Home struct {
 	last     time.Time
 	key      string
 	calendar bool
+	// recent: the strip shows the recently opened apps (Up) instead of all of them (Down).
+	// allKey remembers the choice in the full list while recents are shown.
+	recent bool
+	allKey string
 	// lift is how far each app's tile stands up, 0..1: the chosen one eases up, the one left
 	// behind eases back down.
 	lift map[string]float64
@@ -49,34 +53,87 @@ type Home struct {
 
 func newHome(a *App) *Home { return &Home{last: time.Now()} }
 
+// recentApps are the apps opened before, newest first (at most 8).
+func recentApps(a *App) []*Entry {
+	var r []*Entry
+	for _, e := range a.apps {
+		if a.cfg.Used[e.Key] > 0 {
+			r = append(r, e)
+		}
+	}
+	sort.SliceStable(r, func(i, j int) bool { return a.cfg.Used[r[i].Key] > a.cfg.Used[r[j].Key] })
+	if len(r) > 8 {
+		r = r[:8]
+	}
+	return r
+}
+
+// list is what the strip shows: the recent apps or all of them.
+func (h *Home) list(a *App) []*Entry {
+	if h.recent {
+		if r := recentApps(a); len(r) > 0 {
+			return r
+		}
+		h.recent = false
+	}
+	return a.apps
+}
+
+// showRecent switches the strip between the recent apps and all of them.
+func (h *Home) showRecent(a *App, on bool) {
+	if on == h.recent {
+		a.snd.Play("bump")
+		return
+	}
+	if on {
+		if len(recentApps(a)) == 0 {
+			a.notify("No recent apps yet", false)
+			return
+		}
+		if e := h.cur(a); e != nil {
+			h.allKey = e.Key
+		}
+		h.recent, h.sel, h.slide = true, 0, 0
+		h.key = h.list(a)[0].Key
+	} else {
+		h.recent = false
+		h.key = h.allKey
+		h.keep(a)
+	}
+	a.snd.Play("open")
+}
+
 func (h *Home) cur(a *App) *Entry {
-	if len(a.apps) == 0 {
+	l := h.list(a)
+	if len(l) == 0 {
 		return nil
 	}
-	h.sel = (h.sel%len(a.apps) + len(a.apps)) % len(a.apps)
-	return a.apps[h.sel]
+	h.sel = (h.sel%len(l) + len(l)) % len(l)
+	return l[h.sel]
 }
 
 // keep re-finds the selected app after the list changes.
 func (h *Home) keep(a *App) {
-	for i, e := range a.apps {
+	l := h.list(a)
+	for i, e := range l {
 		if e.Key == h.key {
 			h.sel = i
 			return
 		}
 	}
-	h.sel = min(h.sel, max(len(a.apps)-1, 0))
+	h.sel = min(h.sel, max(len(l)-1, 0))
 }
 
 func (h *Home) move(a *App, d int) {
-	n := len(a.apps)
+	l := h.list(a)
+	n := len(l)
 	if n == 0 {
 		return
 	}
 	h.sel = ((h.sel+d)%n + n) % n
 	h.slide += float64(d)
 	h.slide = math.Max(-3, math.Min(3, h.slide))
-	h.key = a.apps[h.sel].Key
+	h.key = l[h.sel].Key
 	a.snd.Play("move")
 }
 
@@ -137,9 +194,12 @@ func (h *Home) Key(a *App, k cp0.Key) {
 	case k.Name == "RIGHT":
 		h.move(a, 1)
 	case k.Name == "UP":
-		h.move(a, -5)
+		h.showRecent(a, true)
 	case k.Name == "DOWN":
-		h.move(a, 5)
+		h.showRecent(a, false)
+	case k.Name == "SPACE" || k.Ch == '/':
+		a.snd.Play("open")
+		a.push(&Search{})
 	case k.Name == "TAB":
 		h.calendar = !h.calendar
 		a.snd.Play("tick")
@@ -303,8 +363,13 @@ func (h *Home) drawLower(a *App) {
 	g.dsGrid(x0, barH, paneRW, 132-barH)
 	g.dsBar(x0, 0, paneRW, barH, a.theme())
 	ink := inkOn(a.theme())
-	n := len(a.apps)
-	ax := g.text(x0+5, 4, "Apps", ink, 1, false)
+	list := h.list(a)
+	n := len(list)
+	title := "Apps"
+	if h.recent {
+		title = "Recent"
+	}
+	ax := g.text(x0+5, 4, title, ink, 1, false)
 	if n > 0 {
 		g.text(ax+5, 4, fmt.Sprintf("%d/%d", h.sel+1, n), ink, 1, false)
 	}
@@ -375,7 +440,7 @@ func (h *Home) drawLower(a *App) {
 		if tx < x0-tileW || tx > W {
 			continue
 		}
-		it := a.apps[i]
+		it := list[i]
 		slots = append(slots, slot{it, tx, smoothstep(h.lift[it.Key])})
 	}
 	sort.SliceStable(slots, func(p, q int) bool { return slots[p].lift < slots[q].lift })
