@@ -6,6 +6,9 @@ screen. It is written for the Doctor (`doctor.go`, Settings > System > Doctor, `
 [--fix]`), so each item says how to check it, how to fix it, and how to undo it. Surveyed on the
 device on 2026-11-25 with Duo 0.7.10.
 
+**Scope:** the launcher only (the user's call). Go for self-update, ZeroCode and its app helper,
+and the shell PATH for the CLI tools are left out: don't add Doctor fixes for them.
+
 **Legend.** *Doctor* says whether `doctor.go` covers it today. *Root* means the fix runs through
 sudo. *Here* is the state on the reference device.
 
@@ -142,46 +145,7 @@ app is open: it kills that app (and any Claude session running in it).
 - **Doctor:** partial (info only). **Root:** yes. **Here:** in all of them, plus `i2c`, `spi`,
   `render`, `netdev`, `plugdev`, `dialout` and `sudo` from the image.
 
-## 9. Go for self-update
-
-- **What:** Go 1.27.4 at `~/.local/go`, which Check for updates uses to build Duo from GitHub
-  main (`GOTOOLCHAIN=local`, `-p 1`).
-- **Check:** `~/.local/go/bin/go version`. Robust: also check the version is at least the one
-  `go.mod` needs, and that there is enough free disk space and memory for a build.
-- **Fix:** download the official `go*.linux-arm64.tar.gz`, check its sha256 against go.dev, and
-  unpack it into `~/.local/go`. No root needed.
-- **Doctor:** info only (`go`). **Here:** in place.
-
-## 10. ZeroCode
-
-- **What:** the ZeroCode harness `~/zerocode`, updated from the PC kit. The previous binary is
-  `~/zerocode.before-openrouter`, and `sh ~/zc-update/install.sh rollback` puts it back.
-  ZeroCode's app helper is `/usr/local/sbin/zc-app-root` (`install <dir>`, `remove <slug>`,
-  `list`), with the sudoers rule `/etc/sudoers.d/zerocode-apps`
-  (`pi ALL=(root) NOPASSWD: /usr/local/sbin/zc-app-root`) and the user wrapper
-  `~/.zerocode/kb/bin/zc-app`.
-- **Why:** ZeroCode apps (`~/apps/<slug>` with `app.conf`, `run.sh`, `icon.png`) get their
-  launcher entries `/usr/share/APPLaunch/{applications/zc-<slug>.desktop, bin/zc-<slug>,
-  share/images/zc-<slug>.png}` through the helper. Duo's uninstall and Download Play use it too.
-- **Check:** the helper and sudoers rule exist, and `sudo -n /usr/local/sbin/zc-app-root list`
-  works.
-- **Doctor:** info only (`zerocode`). Don't reinstall ZeroCode from the Doctor: it comes from
-  the user's kit. **Here:** in place.
-
-## 11. Shell PATH for the CLI tools
-
-- **What:** `~/.bashrc` puts `~/.local/bin` on PATH (lines 115 and 119 do the same thing), and
-  `.profile` does too. `claude` (Claude CLI, `~/.local/share/claude`, linked from
-  `~/.local/bin/claude`) and `agy` live there.
-- **Why:** `claude` said "command not found" in terminals that weren't login shells.
-- **Check:** `bash -ic 'command -v claude'`.
-- **Fix:** add one `export PATH="$HOME/.local/bin:$PATH"` line to `~/.bashrc` if it's missing.
-  No root needed.
-- **Doctor:** no (optional). **Here:** in place.
-- **Memory:** 414 MB of RAM plus a 414 MB zram swap from the image. Claude CLI only runs with
-  the swap, so a Doctor check that zram swap is on is useful.
-
-## 12. Factory setup that Duo needs, and isn't ours
+## 9. Factory setup that Duo needs, and isn't ours
 
 These come with M5's image or the `applaunch` package. Check them read-only and report; don't
 "fix" them:
@@ -200,7 +164,7 @@ These come with M5's image or the `applaunch` package. Check them read-only and 
 - `/etc/X11/xorg.conf.d/99-v3d.conf` and `/etc/default/keyboard` changed recently but aren't
   Duo's.
 
-## 13. Left behind on purpose
+## 10. Left behind on purpose
 
 - `~/hide-console-cursor.sh`, the script the user ran with sudo for item 3.
 - `~/.local/bin/cardputer-home.prev`, the previous home script.
@@ -212,8 +176,8 @@ These come with M5's image or the `applaunch` package. Check them read-only and 
 
 These follow from the list above:
 
-1. **Cover every item:** add the missing fixes (3 cursor, 7 Wi-Fi polkit, 8 groups, 11 PATH), and
-   read-only checks for item 12.
+1. **Cover every item:** add the missing fixes (3 cursor, 7 Wi-Fi polkit, 8 groups), and
+   read-only checks for item 9.
 2. **Check content, not just existence:** compare installed files with the embedded copies by
    sha256, and offer to update when they differ. Check that units are enabled and active, and
    read the KD mode.
