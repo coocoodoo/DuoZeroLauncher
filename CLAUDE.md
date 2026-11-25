@@ -221,7 +221,8 @@ then reboot, or ask the user to restart it.
 
 - PictoChat opens with the launch animation too: `App.launchBuiltin` (main.go) plays it for a
   built-in opened from its home tile (the same `launchFromHome` apps get), then the view is
-  pushed. Other built-ins (Calculator, IP Panel, Settings...) still open straight away.
+  pushed. 0.7.3: Calculator, IP Panel and Settings too (CLI, Python and the Store already had it
+  through `runApp`; SSH asks for the host first, so it doesn't).
 
 ## Local changes (0.7.2)
 

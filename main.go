@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.7.2"
+const version = "0.7.3"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -643,15 +643,21 @@ func loader(g *G, cx, cy int, t float64) { g.dsLoading(cx-5, cy-5, t) }
 func (a *App) open(e *Entry) {
 	switch e.Builtin {
 	case "settings":
-		a.snd.Play("open")
+		if !a.launchBuiltin(e) {
+			a.snd.Play("open")
+		}
 		a.push(newSettings(a))
 		return
 	case "ip":
-		a.snd.Play("select")
+		if !a.launchBuiltin(e) {
+			a.snd.Play("select")
+		}
 		a.push(newIPPanel(a))
 		return
 	case "calc":
-		a.snd.Play("select")
+		if !a.launchBuiltin(e) {
+			a.snd.Play("select")
+		}
 		a.push(newCalc(a))
 		return
 	case "pictochat":
