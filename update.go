@@ -84,8 +84,49 @@ func goTool() string {
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
+// progressFn reports a stage message ("" keeps the current one) and overall progress 0..1.
+type progressFn func(msg string, p float64)
+
+func (f progressFn) report(msg string, p float64) {
+	if f != nil {
+		f(msg, p)
+	}
+}
+
+// whileRunning calls tick every 250 ms until done is closed.
+func whileRunning(done <-chan struct{}, tick func()) {
+	t := time.NewTicker(250 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-t.C:
+			tick()
+		}
+	}
+}
+
+// buildSecondsFile remembers how long the last on-device build took, for the progress bar.
+func buildSecondsFile() string { return filepath.Join(cacheDir(), "update-build-seconds") }
+
+func expectedBuild() time.Duration {
+	if b, err := os.ReadFile(buildSecondsFile()); err == nil {
+		if s, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && s >= 10 && s < 3600 {
+			return time.Duration(s) * time.Second
+		}
+	}
+	return 2 * time.Minute
+}
+
+func mmss(d time.Duration) string {
+	s := int(d.Round(time.Second) / time.Second)
+	return fmt.Sprintf("%d:%02d", s/60, s%60)
+}
+
 // buildUpdate downloads the repo and builds it into <work>/app.new; it returns <work>.
-func buildUpdate(want string) (string, error) {
+// Progress: download 2-20%, unpack 22%, build 24-90% (timed against the last build), check 92%.
+func buildUpdate(want string, prog progressFn) (string, error) {
 	gt := goTool()
 	if gt == "" {
 		return "", errors.New("Go is not installed (~/.local/go)")
@@ -99,9 +140,19 @@ func buildUpdate(want string) (string, error) {
 	os.MkdirAll(tmp, 0o755)
 	tgz := filepath.Join(work, "src.tar.gz")
 	url := "https://codeload.github.com/" + updateRepo + "/tar.gz/refs/heads/" + updateBranch
-	if _, err := run(3*time.Minute, "curl", "-fsSL", "--max-time", "170", "-o", tgz, url); err != nil {
+	prog.report("Downloading Duo Launcher "+want+"...", 0.02)
+	done := make(chan struct{})
+	go whileRunning(done, func() {
+		if st, err := os.Stat(tgz); err == nil {
+			prog.report("", 0.02+0.18*min(float64(st.Size())/700e3, 1)) // the source is ~650 KB
+		}
+	})
+	_, err := run(3*time.Minute, "curl", "-fsSL", "--max-time", "170", "-o", tgz, url)
+	close(done)
+	if err != nil {
 		return "", errors.New("download failed")
 	}
+	prog.report("Unpacking...", 0.22)
 	if out, err := run(time.Minute, "tar", "-xzf", tgz, "-C", src, "--strip-components=1"); err != nil {
 		return "", fmt.Errorf("unpack failed: %s", briefLine(out))
 	}
@@ -111,11 +162,26 @@ func buildUpdate(want string) (string, error) {
 	cmd := exec.Command(gt, "build", "-p", "1", "-trimpath", "-ldflags=-s -w", "-o", filepath.Join(work, "app.new"), ".")
 	cmd.Dir = src
 	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=local", "CGO_ENABLED=0", "TMPDIR="+tmp, "GOTMPDIR="+tmp)
+	expect, start := expectedBuild(), time.Now()
+	report := func() {
+		el := time.Since(start)
+		msg := "Building Duo Launcher " + want + "... almost done"
+		if left := expect - el; left > 5*time.Second {
+			msg = "Building Duo Launcher " + want + "... about " + mmss(left) + " left"
+		}
+		prog.report(msg, 0.24+0.66*min(float64(el)/float64(expect), 0.97))
+	}
+	report()
+	done = make(chan struct{})
+	go whileRunning(done, report)
 	out, err := runCmd(20*time.Minute, cmd)
+	close(done)
 	os.WriteFile(filepath.Join(work, "build.log"), []byte(out), 0o644)
 	if err != nil {
 		return "", fmt.Errorf("build failed: %s", briefLine(out))
 	}
+	os.WriteFile(buildSecondsFile(), []byte(strconv.Itoa(int(time.Since(start).Seconds()+0.5))), 0o644)
+	prog.report("Checking the new build...", 0.92)
 	// Check the new binary runs. Use --sounds, which every Duo version has and which only writes
 	// a file (older builds don't know --version and would start a whole launcher instead).
 	wav := filepath.Join(tmp, "check.wav")
@@ -238,8 +304,8 @@ func checkForUpdates(a *App) {
 
 func startUpdate(a *App, want string) {
 	var work string
-	a.background("Building Duo Launcher "+want+"... this takes a few minutes", func() error {
-		w, err := buildUpdate(want)
+	a.background("Downloading Duo Launcher "+want+"...", func() error {
+		w, err := buildUpdate(want, a.setProgress)
 		work = w
 		return err
 	}, func(err error) {
@@ -258,6 +324,7 @@ func startUpdate(a *App, want string) {
 				time.Sleep(1200 * time.Millisecond)
 				restartSelf(a)
 			})
+		a.setProgress("", 0.96) // installing (no bar if it first asks for the password)
 	})
 }
 
@@ -286,7 +353,11 @@ func updateCheckCLI() int {
 		return 1
 	}
 	fmt.Printf("installed %s, GitHub %s, newer: %v\n", version, v, newerVersion(v, version))
-	w, err := buildUpdate(v)
+	w, err := buildUpdate(v, func(msg string, p float64) {
+		if msg != "" {
+			fmt.Printf("%3.0f%% %s\n", p*100, msg)
+		}
+	})
 	if err != nil {
 		fmt.Println("build failed:", err)
 		return 1

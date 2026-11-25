@@ -15,12 +15,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-const version = "0.6.2"
+const version = "0.6.3"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -72,7 +73,8 @@ type App struct {
 
 	busyMu   sync.Mutex
 	busyText string
-	jobGen   int // bumped when Esc cancels a job, so its result is dropped
+	progress float64 // 0..1 shows a progress bar under the busy message; < 0 hides it
+	jobGen   int     // bumped when Esc cancels a job, so its result is dropped
 	work     chan func()
 	quit     bool
 	leave    bool // chosen "Back to the system launcher": exit with exitLeave
@@ -99,7 +101,7 @@ func main() {
 		return
 	}
 	a := &App{cfg: loadConfig(), snd: newSound(), status: &Status{Battery: -1}, start: time.Now(),
-		work: make(chan func(), 16), pressSlot: -1}
+		work: make(chan func(), 16), pressSlot: -1, progress: -1}
 	a.scr = cp0.Open()
 	a.g = newG(a.scr)
 	if sim := os.Getenv("DSL_SIM"); sim != "" {
@@ -190,6 +192,7 @@ func (a *App) save() {
 func (a *App) background(msg string, fn func() error, done func(err error)) {
 	a.busyMu.Lock()
 	a.busyText = msg
+	a.progress = -1
 	a.jobGen++
 	gen := a.jobGen
 	a.busyMu.Unlock()
@@ -218,6 +221,20 @@ func (a *App) busy() string {
 	a.busyMu.Lock()
 	defer a.busyMu.Unlock()
 	return a.busyText
+}
+
+// setProgress updates the running job's message (when msg isn't empty) and its progress bar
+// (0..1). Safe from the job's goroutine; ignored once the job has finished or been cancelled.
+func (a *App) setProgress(msg string, p float64) {
+	a.busyMu.Lock()
+	if a.busyText != "" {
+		if msg != "" {
+			a.busyText = msg
+		}
+		a.progress = p
+	}
+	a.busyMu.Unlock()
+	a.dirty = true
 }
 
 // withSudo asks for the account password (remembered for ten minutes) and runs fn with it.
@@ -359,10 +376,20 @@ func (a *App) dispatch(k cp0.Key) {
 	if s := k.Slot(); s >= 0 && !a.keys.textMode() {
 		a.pressSlot, a.pressTill = s, time.Now().Add(180*time.Millisecond)
 	}
+	if p, ok := strings.CutPrefix(k.Name, "BUSY:"); ok && a.sim { // scripted: show the update progress screen
+		a.busyMu.Lock()
+		a.busyText, a.progress = "", -1
+		if v, err := strconv.ParseFloat(p, 64); err == nil {
+			a.busyText, a.progress = "Building Duo Launcher 0.6.3... about 0:48 left", v
+		}
+		a.busyMu.Unlock()
+		return
+	}
 	if a.busy() != "" {
 		if k.Back() { // Esc gives up waiting; the job's result is ignored
 			a.busyMu.Lock()
 			a.busyText = ""
+			a.progress = -1
 			a.jobGen++
 			a.busyMu.Unlock()
 			a.snd.Play("back")
@@ -527,6 +554,27 @@ func (a *App) drawBusy(msg string) {
 	for i, l := range lines[:min(2, len(lines))] {
 		g.textC(W/2, y+17-6*(len(lines)-1)+i*12, l, cWhite, 1, false)
 	}
+	a.busyMu.Lock()
+	p := a.progress
+	a.busyMu.Unlock()
+	if p >= 0 {
+		a.drawProgress(x+6, y+51, w-12, 14, p)
+	}
+}
+
+// drawProgress is the bar under the busy message: dark track, orange outline, a fill in the
+// favourite colour (a smooth gradient) and the percentage.
+func (a *App) drawProgress(x, y, w, h int, p float64) {
+	g := a.g
+	p = max(0, min(p, 1))
+	g.frame(x-1, y-1, w+2, h+2, cFocus)
+	g.rect(x, y, w, h, cBlack)
+	g.rect(x+1, y+1, w-2, h-2, cInfoBG)
+	if fw := int(float64(w-2)*p + 0.5); fw > 0 {
+		g.rrect(x+1, y+1, fw, h-2, 0, a.theme().lighter(0.45), a.theme().darker(0.15))
+	}
+	label := strconv.Itoa(int(p*100+0.5)) + "%"
+	g.textShadow(x+w/2-textW(label, 1, false)/2, y+3, label, cWhite, cBlack, 1, false)
 }
 
 // loader draws the DS loading squares centred on (cx, cy).

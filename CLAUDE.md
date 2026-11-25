@@ -102,4 +102,15 @@ then reboot, or ask the user to restart it.
   linear interpolation instead of nearest pixels; the result is dithered (`pxSmooth`). Untinted
   textures (input, alert, PictoChat frames) are drawn as before.
 
+## Local changes (0.6.3)
+
+- Update progress bar: `App.progress` (0..1, < 0 hidden) is drawn by `drawProgress` under the
+  busy alert. Jobs set it with `App.setProgress` (safe from the job's goroutine; ignored once the
+  job ended or was cancelled); `background` resets it. `buildUpdate(want, prog)` reports:
+  download 2-20% (file size vs ~650 KB), unpack 22%, build 24-90% timed against the last build
+  (`~/.cache/dslauncher/update-build-seconds`, default 2 min, with "about m:ss left"), check
+  92%, install 96%. The update runs in the installed version's code, so the bar shows from the
+  update after the one that installs 0.6.3.
+- Scripted key `BUSY:<0..1>` shows the progress screen for screenshots; `BUSY:-` hides it.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).
