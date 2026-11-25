@@ -223,4 +223,11 @@ then reboot, or ask the user to restart it.
   built-in opened from its home tile (the same `launchFromHome` apps get), then the view is
   pushed. Other built-ins (Calculator, IP Panel, Settings...) still open straight away.
 
+## Local changes (0.7.2)
+
+- PictoChat's icon is the user's 9 x 9 pixel smiley in a square: `tools/mkpictoicon.py` writes
+  `icons/pictochat.svg`, the app icon `assets/apps/pictochat.png` (9 x 9; `scaleIcon` scales it
+  up nearest-neighbour, so it stays crisp) and the title-bar mask `assets/tiles/pictochat.png`
+  (mapped to `artPicto` in `tileIcons`). Change the grid there and rerun it.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).
