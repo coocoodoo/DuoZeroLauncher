@@ -217,4 +217,10 @@ then reboot, or ask the user to restart it.
   drawing. Tests: `picto_test.go` (WebSocket round trip, two clients through the host, compose,
   rendering).
 
+## Local changes (0.7.1)
+
+- PictoChat opens with the launch animation too: `App.launchBuiltin` (main.go) plays it for a
+  built-in opened from its home tile (the same `launchFromHome` apps get), then the view is
+  pushed. Other built-ins (Calculator, IP Panel, Settings...) still open straight away.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

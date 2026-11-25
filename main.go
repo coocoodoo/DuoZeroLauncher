@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.7.0"
+const version = "0.7.1"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -655,7 +655,9 @@ func (a *App) open(e *Entry) {
 		a.push(newCalc(a))
 		return
 	case "pictochat":
-		a.snd.Play("open")
+		if !a.launchBuiltin(e) {
+			a.snd.Play("open")
+		}
 		a.push(pictoMenu(a))
 		return
 	case "cli":
@@ -784,6 +786,21 @@ func (a *App) drawLaunching(e *Entry) {
 	g.text(x+54, y+25, "Starting...", cWhite, 1, false)
 	g.dsLoading(x+w-20, y+24, a.t)
 	a.scr.Show()
+}
+
+// launchBuiltin plays the launch animation (tile rises, everything fades to white) for a
+// built-in app opened from its tile on the home screen, like an app Duo starts. It reports
+// whether it played.
+func (a *App) launchBuiltin(e *Entry) bool {
+	h, ok := a.top().(*Home)
+	if !ok || h.cur(a) != e {
+		return false
+	}
+	a.snd.Play("launch")
+	a.cfg.markUsed(e.Key)
+	a.save()
+	a.launchFromHome(h, e)
+	return true
 }
 
 func (a *App) launchFromHome(h *Home, e *Entry) {
