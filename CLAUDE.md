@@ -308,6 +308,26 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.8.1)
+
+- The Doctor covers every launcher tweak in `device/TWEAKS.md` (scope: launcher only; no Go,
+  ZeroCode or shell PATH checks). Checks with fixes: `home`, `bluetooth` (user files);
+  `bootlogo`, `cursor` (`device/hide-console-cursor.service`), `console` (unit enabled, marker,
+  tty1 KD mode via `kdMode`), `hosts`, `wifi` (`device/49-cardputer-wifi.rules`, checked with
+  `nmcli general permissions`), `groups` (video gpio input audio lp, those that exist). Read-only:
+  `blackout`, `backlight`, and the factory pieces (autologin, linger, sound, keyboard, udev, adb).
+- Content, not existence: installed files are compared with the embedded copies (UPDATE when they
+  differ); units must be enabled. States: OK, FIX, UPDATE, AFTER BOOT/LOGIN (`docLater`), MISSING
+  (`docInfo`), NOT USED.
+- Every fix keeps the first file it replaces as `<file>.duo-bak` and records itself in
+  `~/.config/dslauncher/doctor.json`; tapping an OK row the Doctor put in offers Undo
+  (`app --doctor --undo KEY` over SSH). Root changes run in one `doctorRootScript` call (one
+  sudo, password on stdin), each key in its own subshell printing `ok KEY` / `fail KEY`.
+- After fixing it checks again and reports fixed / counts later / not fixed. Log:
+  `~/.cache/dslauncher/doctor.log` (check results and ok/fail only, no secrets, capped ~200 KB).
+- `.gitattributes` keeps every file LF: the embedded device files must match the installed ones
+  byte for byte.
+
 ## Local changes (0.7.10)
 
 - The loading ticks revolve around the listener on the mono speaker (the user: "Bingo"):

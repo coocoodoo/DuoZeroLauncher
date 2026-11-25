@@ -1,0 +1,12 @@
+[Unit]
+Description=Hide the console cursor on the LCD (Duo Launcher is drawn over the console)
+After=systemd-vconsole-setup.service fb_load.service
+ConditionPathExists=/dev/tty1
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'echo 0 > /sys/class/graphics/fbcon/cursor_blink; printf "\\033[?25l" > /dev/tty1'
+
+[Install]
+WantedBy=multi-user.target

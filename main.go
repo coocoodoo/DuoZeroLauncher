@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.8.0"
+const version = "0.8.1"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -103,7 +103,7 @@ func main() {
 		os.Exit(updateCheckCLI())
 	}
 	if len(os.Args) >= 2 && os.Args[1] == "--doctor" {
-		os.Exit(doctorCLI(len(os.Args) == 3 && os.Args[2] == "--fix"))
+		os.Exit(doctorCLI(os.Args[2:]))
 	}
 	if len(os.Args) == 3 && os.Args[1] == "--sounds" {
 		if err := writeSoundPreview(os.Args[2]); err != nil {

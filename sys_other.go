@@ -8,3 +8,5 @@ func kernel() string  { return "?" }
 func storage() string { return "?" }
 func execSelf(string) {}
 func reapOrphans()    {}
+
+func kdMode() (int, bool) { return 0, false }

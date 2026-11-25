@@ -1,0 +1,7 @@
+# Always LF: shell scripts and unit files are built into Duo and installed on the Cardputer,
+# and the Doctor compares them by sha256.
+* text=auto eol=lf
+*.png binary
+*.pcm binary
+*.wav binary
+*.ttf binary

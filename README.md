@@ -87,11 +87,17 @@ for your password once. Over SSH: `~/apps/duo-launcher/app --doctor` reports, an
 | Boot logo lets go | `fb_load.service.d/duo.conf` (no `--keep-open`) | yes |
 | Terminal kept off the screen | `duo-console.service`: tty1 in graphics mode, so the text console never draws over Duo and the screen can power fully off | yes |
 | Device name in /etc/hosts | the `127.0.1.1` line (sudo stops stalling ~10 s) | yes |
+| Console cursor hidden | `hide-console-cursor.service` (no blinking square in the corner) | yes |
 | Bluetooth audio allowed | WirePlumber `90-bluetooth-no-seat.conf` | no |
-| Screen goes fully dark | Duo holds M5's backlight line itself (the gpio group, no root) | no |
-| Go, ZeroCode helper, brightness | reported only | |
+| Wi-Fi settings allowed | polkit rule `49-cardputer-wifi.rules` (adding networks no longer says "service unavailable") | yes |
+| User groups | video, gpio, input, audio, lp (from the next login) | yes |
+| Screen goes fully dark, brightness, M5's factory setup | reported only | |
 
-The files it installs are in `device/` (built into Duo).
+It compares installed files with Duo's copies (UPDATE when they differ), keeps the first file a fix
+replaces as `<file>.duo-bak`, and offers Undo for anything it put in (`app --doctor --undo KEY`).
+After fixing it checks again and says what only counts from the next boot or login. A shareable log
+(no passwords or keys) is at `~/.cache/dslauncher/doctor.log`. The files it installs are in
+`device/` (built into Duo); `device/TWEAKS.md` lists every change and why.
 
 ## Uninstalling apps
 

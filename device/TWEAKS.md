@@ -61,7 +61,7 @@ app is open: it kills that app (and any Claude session running in it).
   stops if the unit already exists, so a Doctor fix has to be idempotent.
 - **Undo:** `systemctl disable --now hide-console-cursor.service && rm
   /etc/systemd/system/hide-console-cursor.service && systemctl daemon-reload`.
-- **Doctor:** **no**. Add it, or fold it into the `console` fix. **Root:** yes. **Here:** in
+- **Doctor:** yes (`cursor`, 0.8.1: unit from `device/hide-console-cursor.service`). **Root:** yes. **Here:** in
   place (enabled, active, `cursor_blink` 0). The user installed it by hand.
 - **Not applied:** adding `vt.global_cursor_default=0` to `/boot/firmware/cmdline.txt` was tried
   and blocked. The file is unchanged, and a backup `cmdline.txt.before-duo` is identical to it.
@@ -128,7 +128,8 @@ app is open: it kills that app (and any Claude session running in it).
 - **Fix:** write the rule and restart polkit.
 - **Undo:** delete the rule and restart polkit.
 - **Trade-off:** anything running as pi can change the network settings.
-- **Doctor:** **no**. Add it. **Root:** yes. **Here:** in place (both `yes`).
+- **Doctor:** yes (`wifi`, 0.8.1: `device/49-cardputer-wifi.rules`, the user name filled in; checked with
+  `nmcli general permissions`). **Root:** yes. **Here:** in place (both `yes`).
 
 ## 8. pi's groups
 
@@ -142,13 +143,15 @@ app is open: it kills that app (and any Claude session running in it).
   for writing (info only), and `blackout` through `backlightLineStatus()`.
 - **Fix:** `usermod -aG <group> pi`. It counts only after the next login or reboot, so say so.
 - **Undo:** `gpasswd -d pi <group>`.
-- **Doctor:** partial (info only). **Root:** yes. **Here:** in all of them, plus `i2c`, `spi`,
+- **Doctor:** yes (`groups`, 0.8.1: adds only groups that exist; "after login" until the session has them;
+  Undo removes only the groups the Doctor added). **Root:** yes. **Here:** in all of them, plus `i2c`, `spi`,
   `render`, `netdev`, `plugdev`, `dialout` and `sudo` from the image.
 
 ## 9. Factory setup that Duo needs, and isn't ours
 
 These come with M5's image or the `applaunch` package. Check them read-only and report; don't
 "fix" them:
+(Doctor 0.8.1: read-only checks `autologin`, `linger`, `sound`, `keyboard`, `udev`, `adb`.)
 
 - tty1 autologin for pi, and lingering for pi (both already listed under item 1).
 - PipeWire with pipewire-pulse at `/run/user/1000/pulse/native`. Duo's sound is `pacat` at 32 kHz
@@ -174,7 +177,7 @@ These come with M5's image or the `applaunch` package. Check them read-only and 
 
 ## Making the Doctor robust
 
-These follow from the list above:
+These follow from the list above (all done in Duo 0.8.1):
 
 1. **Cover every item:** add the missing fixes (3 cursor, 7 Wi-Fi polkit, 8 groups), and
    read-only checks for item 9.

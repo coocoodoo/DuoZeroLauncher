@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"unsafe"
 )
 
 func kernel() string {
@@ -46,4 +47,19 @@ func reapOrphans() {
 			return
 		}
 	}
+}
+
+// kdMode reads tty1's console mode (KDGETMODE): 0 text, 1 graphics; ok is false if tty1 can't
+// be opened (not ours, or no console).
+func kdMode() (mode int, ok bool) {
+	f, err := os.OpenFile("/dev/tty1", os.O_RDONLY|syscall.O_NOCTTY, 0)
+	if err != nil {
+		return 0, false
+	}
+	defer f.Close()
+	var m int32
+	if _, _, e := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), 0x4B3B, uintptr(unsafe.Pointer(&m))); e != 0 {
+		return 0, false
+	}
+	return int(m), true
 }
