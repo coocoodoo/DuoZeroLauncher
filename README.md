@@ -26,9 +26,9 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   CLI, Python, SSH, IP Panel, Calculator, PictoChat, Settings. Arrows move (Up/Down jump 5), keys 4–8:
   OPEN, FAVE (pin to the front), INFO (details, hide, uninstall), SETTINGS, LOCK. Tab shows the
   calendar. Leave via Settings > Launcher.
-- **Tab is the power button:** hold it anywhere to lock and switch the screen completely off (the
-  panel is powered down, not just the backlight). While it is off nothing but Tab wakes it, like
-  a phone; the volume keys still change the volume. Tab wakes it to the lock screen, and a second
+- **Tab is the power button:** hold it anywhere to lock and switch the screen off (backlight
+  off). While it is off nothing but Tab wakes it, like a phone; the volume keys still change the
+  volume. Tab wakes it to the lock screen, and a second
   Tab unlocks (or asks for your PIN). The screen's own idle timeout switches it off the same way.
   The chosen app's tile eases up out of the strip in your favourite colour with a soft shadow
   around it, and the one you scrolled away from eases back down.

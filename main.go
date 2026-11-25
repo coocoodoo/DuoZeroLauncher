@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.7.4"
+const version = "0.7.5"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -394,13 +394,21 @@ func (a *App) sleepNow() {
 	a.screenOff()
 }
 
-// screenOff turns the display completely off, like a phone's power button: the backlight to 0,
-// then the panel powered down (FBIOBLANK; a driver that can't do that keeps just the backlight
-// off). The corner repair pauses so nothing wakes every 8 ms. Only Tab turns it back on.
+// panelPowerOff also powers the panel down (FBIOBLANK) when the screen goes off. Off by
+// default: on the Cardputer the kernel console repainted itself over Duo when the panel came
+// back (0.7.4), so the backlight alone switches the screen off until that is solved on the
+// device. DSL_PANEL_OFF=1 turns it on for testing.
+var panelPowerOff = os.Getenv("DSL_PANEL_OFF") == "1"
+
+// screenOff turns the display off, like a phone's power button: the backlight to 0 (and the
+// panel powered down when panelPowerOff). The corner repair pauses so nothing wakes every 8 ms.
+// Only Tab turns it back on.
 func (a *App) screenOff() {
 	setBacklight(0)
 	a.scr.GuardCorner(false)
-	a.blanked = a.scr.Blank(true)
+	if panelPowerOff {
+		a.blanked = a.scr.Blank(true)
+	}
 	a.dimLevel = 2
 	a.loadingSound(false)
 }

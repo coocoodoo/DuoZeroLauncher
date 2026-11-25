@@ -242,5 +242,12 @@ then reboot, or ask the user to restart it.
   `sleep_test.go` drives it through `handle`.
 - Locking closes only `*Input` boxes (a half-typed password) now, not every typing screen: the
   Calculator and PictoChat are still there after unlocking.
+- 0.7.5: on the device, after FBIOBLANK unblank the user saw the Linux text console instead of
+  Duo (fbcon repaints on unblank; maybe it also pans the framebuffer, so Duo's frames at offset
+  0 aren't the ones shown). Panel power-off is now off by default (`panelPowerOff`,
+  `DSL_PANEL_OFF=1` to try it); the backlight alone turns the screen off, as before 0.7.4.
+  To make it work: check `fbset`/yoffset and `/sys/class/vtconsole/*/bind` on the device; likely
+  fixes are FBIOPAN_DISPLAY back to 0 plus a full redraw after unblank, or putting tty1 in
+  KD_GRAPHICS / unbinding fbcon (root).
 
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).
