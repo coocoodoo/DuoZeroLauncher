@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "0.6.5"
+const version = "0.6.6"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -83,6 +83,7 @@ type App struct {
 	simShots string
 	shotN    int
 	launch   *Entry // set while an app runs
+	vol      volState
 }
 
 func main() {
@@ -310,7 +311,8 @@ func (a *App) animating() bool {
 	if t, ok := a.top().(Ticker); ok && t.Animating(a) {
 		return true
 	}
-	return time.Now().Before(a.toastTill) || time.Now().Before(a.pressTill) || a.busy() != ""
+	return time.Now().Before(a.toastTill) || time.Now().Before(a.pressTill) || a.busy() != "" ||
+		time.Now().Before(a.vol.shownTill)
 }
 
 func (a *App) handle(k cp0.Key) {
@@ -339,6 +341,13 @@ func (a *App) handle(k cp0.Key) {
 		}
 	}
 	if k.Released {
+		return
+	}
+	if isVolumeKey(k) { // Fn+S / Fn+D / Fn+A: on every screen, and they wake it to show the level
+		if a.dimLevel > 0 {
+			a.wake()
+		}
+		a.volumeKey(k)
 		return
 	}
 	if a.dimLevel > 0 {
@@ -487,6 +496,9 @@ func (a *App) draw() {
 		a.drawBusy(msg)
 	} else if time.Now().Before(a.toastTill) {
 		a.drawToast()
+	}
+	if time.Now().Before(a.vol.shownTill) {
+		a.drawVolume()
 	}
 	a.scr.Show()
 }

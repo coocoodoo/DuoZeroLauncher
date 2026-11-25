@@ -26,6 +26,9 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   calendar; hold Tab anywhere to lock and turn the screen off (sleep). Leave via Settings > Launcher.
   The chosen app's tile eases up out of the strip in your favourite colour with a soft shadow
   around it, and the one you scrolled away from eases back down.
+- **Volume keys everywhere in Duo:** Fn+S quieter, Fn+D louder (and unmute), Fn+A mute, in 5%
+  steps (hold to keep going). A volume meter shows the level for a moment; it works on the lock
+  screen too and wakes a dimmed screen.
 - **Launching:** the chosen tile rises while everything else fades to white and the app's name
   fades in under it; then the app gets the screen and keyboard, and gives them back when it exits.
   CLI, Python and SSH open in Tiny Terminal (through a `$SHELL` wrapper).

@@ -150,12 +150,13 @@ func speakerPage(a *App) View {
 	l := page("SPEAKER", artSpeaker,
 		&Row{Label: "Volume", Kind: rowSlider, Num: vol, Min: 0, Max: 100, Step: 5, Unit: "%", Off: !ok,
 			Do: func(a *App, r *Row) {
+				a.vol.known = false // the volume keys read it again
 				if setVolume(r.Num) != nil {
 					a.notify("Cannot change the volume", true)
 				}
 			}},
 		&Row{Label: "Mute", Kind: rowToggle, On: muted, Off: !ok,
-			Do: func(a *App, r *Row) { setMute(r.On) }},
+			Do: func(a *App, r *Row) { a.vol.known = false; setMute(r.On) }},
 		&Row{Label: "Menu sounds", Kind: rowToggle, On: a.cfg.Sounds,
 			Do: func(a *App, r *Row) { a.cfg.Sounds = r.On; a.applySound(); a.save() }},
 		&Row{Label: "Menu sound level", Kind: rowSlider, Num: a.cfg.SoundVol, Min: 0, Max: 10, Step: 1,

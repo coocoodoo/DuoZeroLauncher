@@ -161,4 +161,16 @@ then reboot, or ask the user to restart it.
 - Scripted runs: a step ending in `~` films 10 frames (`App.film`); launches save
   `launch-25..100` (`saveShot`).
 
+## Local changes (0.6.6)
+
+- Volume keys (volume.go): the keyboard driver's Fn layer (keymap2) sends KEY_MUTE 113 (Fn+A),
+  KEY_VOLUMEDOWN 114 (Fn+S) and KEY_VOLUMEUP 115 (Fn+D); cp0 names them MUTE/VOLUMEDOWN/VOLUMEUP.
+  `App.handle` takes them before any view (so they work in text fields and on the lock screen,
+  and wake a dimmed screen). `volumeKey` steps the cached level by 5 (re-read with wpctl when
+  stale), `sendVolume` passes it to one `volumeWorker` goroutine (a 1-slot channel: newest
+  request wins) that runs `wpctl` and plays a tick at the new level. `drawVolume` is the meter,
+  shown for `volShow` after the last press; Settings > Speaker's rows follow it. Scripted runs
+  never touch the real volume. Other Fn keys the driver sends and Duo ignores: Fn+U/I
+  brightness, Fn+Q/W/E media.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

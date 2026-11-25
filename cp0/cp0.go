@@ -326,7 +326,8 @@ var sym = map[int]rune{26: '!', 27: '@', 39: '#', 40: '$', 41: '%', 43: '^', 51:
 	81: '\'', 82: '"', 83: '<', 85: '>', 86: '\\', 89: '|', 90: ',', 91: '.', 92: '/', 93: '?'}
 
 var special = map[int]string{1: "ESC", 14: "BACKSPACE", 15: "TAB", 28: "ENTER", 96: "ENTER", 57: "SPACE", 103: "UP",
-	108: "DOWN", 105: "LEFT", 106: "RIGHT", 102: "HOME", 107: "END", 104: "PGUP", 109: "PGDN", 111: "DELETE"}
+	108: "DOWN", 105: "LEFT", 106: "RIGHT", 102: "HOME", 107: "END", 104: "PGUP", 109: "PGDN", 111: "DELETE",
+	113: "MUTE", 114: "VOLUMEDOWN", 115: "VOLUMEUP"} // Fn+A, Fn+S, Fn+D on the Cardputer
 
 var nav = map[int]string{33: "UP", 45: "DOWN", 44: "LEFT", 46: "RIGHT"} // plain F, X, Z, C
 
