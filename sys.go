@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -534,6 +535,63 @@ func osName() string {
 }
 
 func hostname() string { h, _ := os.Hostname(); return h }
+
+// hostsFile is /etc/hosts (a var for tests).
+var hostsFile = "/etc/hosts"
+
+var hostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
+
+// hostnameListed reports whether /etc/hosts names this device. Without it every sudo looks the
+// name up on the network first and can stall ~10 s ("unable to resolve host").
+func hostnameListed(name string) bool {
+	if name == "" || strings.EqualFold(name, "localhost") {
+		return true
+	}
+	b, err := os.ReadFile(hostsFile)
+	if err != nil {
+		return true // can't tell: don't offer a fix
+	}
+	for _, l := range strings.Split(string(b), "\n") {
+		l, _, _ = strings.Cut(l, "#")
+		f := strings.Fields(l)
+		for i := 1; i < len(f); i++ {
+			if strings.EqualFold(f[i], name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hostsScript points the 127.0.1.1 line of a hosts file at a device name (Debian's convention),
+// adding the line if there is none, after keeping a copy in <file>.duo-bak. Run as root:
+// $1 = name, $2 = the hosts file.
+const hostsScript = `set -eu
+name=$1; f=$2
+case "$name" in ""|-*|*[!A-Za-z0-9-]*) echo "bad device name"; exit 1 ;; esac
+cp -p "$f" "$f.duo-bak"
+tmp=$(mktemp "$f.XXXXXX")
+if grep -q '^127\.0\.1\.1[[:space:]]' "$f"; then
+  sed "s/^127\.0\.1\.1[[:space:]].*/127.0.1.1\t$name/" "$f" > "$tmp"
+else
+  cat "$f" > "$tmp"
+  printf '127.0.1.1\t%s\n' "$name" >> "$tmp"
+fi
+chmod 644 "$tmp"
+mv -f "$tmp" "$f"
+`
+
+// fixHosts makes /etc/hosts name the device, with the admin password.
+func fixHosts(pw, name string) error {
+	if !hostRE.MatchString(name) {
+		return errors.New("bad device name")
+	}
+	out, err := runSudo(pw, 60*time.Second, "sh", "-c", hostsScript, "hosts", name, hostsFile)
+	if err != nil {
+		return errors.New("/etc/hosts: " + lastError(out, err))
+	}
+	return nil
+}
 
 func uptime() string {
 	f := strings.Fields(readTrim("/proc/uptime"))

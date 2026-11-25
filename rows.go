@@ -47,6 +47,7 @@ type RowList struct {
 	Refresh func(a *App, l *RowList) // reload values (also on 4/Enter of an info row)
 	Extra   func(a *App, l *RowList, k cp0.Key) bool
 	BarFn   func(a *App, l *RowList) []BarItem
+	Tag     string // names a page so code can close it (dropTagged)
 }
 
 const rowsVisible = 6

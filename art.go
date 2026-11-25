@@ -419,6 +419,7 @@ var barIcons = map[*string]string{
 	&artLock[0]: "lock", &artBack[0]: "back", &artOK[0]: "ok", &artNo[0]: "no",
 	&artLeft[0]: "left", &artRight[0]: "right", &artMinus[0]: "minus", &artPlus[0]: "plus",
 	&artRefresh[0]: "refresh", &artEye[0]: "eye", &artBell[0]: "bell", &artPower[0]: "power",
+	&artTrash[0]: "trash",
 }
 
 func barIcon(art []string) *Tex {

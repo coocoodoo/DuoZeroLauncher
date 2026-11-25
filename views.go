@@ -72,6 +72,8 @@ func (v *AppInfo) Key(a *App, k cp0.Key) {
 		a.pop()
 		a.snd.Play("toggle-off")
 		a.notify("Hidden. Settings > Launcher shows it again", false)
+	case k.Slot() == 3:
+		uninstallApp(a, v.e)
 	}
 }
 
@@ -80,8 +82,8 @@ func (v *AppInfo) Bar(a *App) []BarItem {
 	if a.cfg.pinIndex(v.e.Key) >= 0 {
 		fave = "UNPIN"
 	}
-	return []BarItem{{"OPEN", artOpen, false}, {fave, artStar, false}, {"HIDE", artEye, false}, {},
-		{"BACK", artBack, false}}
+	return []BarItem{{"OPEN", artOpen, false}, {fave, artStar, false}, {"HIDE", artEye, false},
+		{"UNINSTALL", artTrash, v.e.Builtin != ""}, {"BACK", artBack, false}}
 }
 
 func (v *AppInfo) Draw(a *App) {
@@ -99,8 +101,11 @@ func (v *AppInfo) Draw(a *App) {
 	}
 	lx := x + 48
 	kind := "App"
+	_, zc := zcSlug(e.Key)
 	if e.Builtin != "" {
 		kind = "Built in"
+	} else if zc {
+		kind = "ZeroCode"
 	}
 	if a.cfg.pinIndex(e.Key) >= 0 {
 		kind += " / pinned"
@@ -121,7 +126,9 @@ func (v *AppInfo) Draw(a *App) {
 	if e.Exec != "" {
 		rows = append(rows, [2]string{"Runs", e.Exec})
 	}
-	if e.Builtin == "" {
+	if zc && e.Origin != "" {
+		rows = append(rows, [2]string{"Folder", tilde(e.Origin)})
+	} else if e.Builtin == "" {
 		rows = append(rows, [2]string{"From", e.Key})
 	}
 	last := "never"
@@ -222,7 +229,7 @@ func (v *Input) Draw(a *App) {
 
 type Confirm struct {
 	title, msg string
-	yes        func()
+	yes        func() // nil: a message with only OK
 }
 
 func confirm(a *App, title, msg string, yes func()) {
@@ -230,12 +237,20 @@ func confirm(a *App, title, msg string, yes func()) {
 	a.push(&Confirm{title: title, msg: msg, yes: yes})
 }
 
+// alert shows a message that is too long for a toast, with OK.
+func alert(a *App, title, msg string) {
+	a.snd.Play("error")
+	a.push(&Confirm{title: title, msg: msg})
+}
+
 func (v *Confirm) Key(a *App, k cp0.Key) {
 	switch {
 	case k.Name == "ENTER" || k.Slot() == 0:
 		a.snd.Play("select")
 		a.pop()
-		v.yes()
+		if v.yes != nil {
+			v.yes()
+		}
 	case k.Back() || k.Slot() == 4:
 		a.snd.Play("back")
 		a.pop()
@@ -243,6 +258,9 @@ func (v *Confirm) Key(a *App, k cp0.Key) {
 }
 
 func (v *Confirm) Bar(a *App) []BarItem {
+	if v.yes == nil {
+		return []BarItem{{"OK", artOK, false}, {}, {}, {}, {}}
+	}
 	return []BarItem{{"YES", artOK, false}, {}, {}, {}, {"NO", artNo, false}}
 }
 
@@ -259,7 +277,7 @@ func (v *Confirm) Draw(a *App) {
 	g.dsAlert(x, y, w, h)
 	g.textC(W/2, y+10, v.title, cPictoEnter, 1, false)
 	for i, l := range lines {
-		if i < 4 {
+		if i < 5 {
 			g.textC(W/2, y+24+i*12, l, cWhite, 1, false)
 		}
 	}

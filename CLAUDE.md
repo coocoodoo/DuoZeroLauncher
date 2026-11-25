@@ -113,4 +113,36 @@ then reboot, or ask the user to restart it.
   update after the one that installs 0.6.3.
 - Scripted key `BUSY:<0..1>` shows the progress screen for screenshots; `BUSY:-` hides it.
 
+## Local changes (0.6.4)
+
+- Uninstalling apps (`remove.go`): INFO > UNINSTALL (key 7), Settings > Launcher > "Uninstall
+  apps" (every app, hidden too) and "Removed apps" (the bin: put back, delete for good).
+  `planRemoval` sorts entries into ZeroCode apps (`zc-<slug>.desktop`; folder from the "Made with
+  ZeroCode (<folder>)" comment, `Entry.Origin`), package apps (`dpkg-query -S` on the .desktop,
+  then on the program) and refused ones (built-ins, Duo, `protectedPkgs`, essential/required/
+  important packages, entries no package owns such as zerocode.desktop).
+- ZeroCode: the folder moves into the bin, then `sudo -n /usr/local/sbin/zc-app-root remove
+  <slug>`; on failure the folder moves back. Put back: move back, `zc-app-root install <folder>`.
+  If sudo wants a password (`errNeedPassword`) Duo asks for it and tries again.
+- Packages: `dependents` reads dpkg's database (`dpkgDBFormat`, tab-separated because
+  alternatives use "|") to list what `apt-get remove` takes with it; `apt-get -s` takes 10-20 s
+  here, so it only runs inside the uninstall job (`aptAgrees`) and stops it if apt disagrees.
+  `repackScript` (as root) rebuilds each package's .deb from /var/lib/dpkg/info (files, control,
+  maintainer scripts, conffiles) into the bin, checked with `dpkg-deb -f`; then
+  `apt-get remove` (never purge or autoremove). Put back: `apt-get install <the .deb copies>`.
+- The bin: `removedDir()` = `~/.local/share/dslauncher/removed` (`DSL_DATA` overrides). Each
+  record says "removing"/"restoring" while working; `loadRemoved` → `reconcile` repairs one
+  cut short. `removeMu` keeps these jobs one at a time. Config changes (unpin, re-pin) and the
+  rescan (`appsChanged`) go through `a.work` so they happen even if the wait was cancelled.
+- `alert` is a Confirm with only OK, for messages too long for a toast; Confirm shows 5 lines.
+- sudo took ~10 s per call here because the hostname (chris, set with Duo's old rename) was not in
+  /etc/hosts ("unable to resolve host"). Fixed in Duo, with the password typed on the device
+  (`fixHosts`/`hostsScript` in sys.go: points the 127.0.1.1 line at the name, keeps
+  /etc/hosts.duo-bak): Settings > User > Device name now does it after `hostnamectl`, and Settings
+  > System shows "Fix slow admin actions" while `hostnameListed` is false. Never run sudo on the
+  UI thread anyway.
+- Scripted runs: `INFO:<entry key>` opens an app's details; a run ends only after its last
+  background job. Tests: `remove_test.go`; `DSL_APT_COMPARE="pkg ..."` (on the device) checks
+  `dependents` against `apt-get -s`.
+
 Don't use `pacat` with a volume flag in tests (the sound server remembers it per client name).

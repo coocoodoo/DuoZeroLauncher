@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "0.6.3"
+const version = "0.6.4"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -296,8 +296,8 @@ func (a *App) loop() {
 			a.draw()
 			frame = a.now
 		}
-		if a.sim && a.keys.(*simKeys).done() {
-			return
+		if a.sim && a.keys.(*simKeys).done() && a.busy() == "" {
+			return // scripted run over, once the last background job has finished
 		}
 	}
 }
@@ -401,6 +401,14 @@ func (a *App) dispatch(k cp0.Key) {
 		for _, e := range a.all {
 			if e.Key == key {
 				a.open(e)
+			}
+		}
+		return
+	}
+	if key, ok := strings.CutPrefix(k.Name, "INFO:"); ok && a.sim { // scripted: an app's details
+		for _, e := range a.all {
+			if e.Key == key {
+				a.push(&AppInfo{e: e})
 			}
 		}
 		return

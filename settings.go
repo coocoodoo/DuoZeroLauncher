@@ -4,6 +4,7 @@ package main
 
 import (
 	"dslauncher/cp0"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -543,6 +544,9 @@ func launcherPage(a *App) View {
 				}},
 			{Label: "Show or hide apps", Kind: rowLink, Value: fmt.Sprintf("%d hidden", hidden),
 				Do: func(a *App, r *Row) { a.push(appsVisibility(a, l)) }},
+			{Label: "Uninstall apps", Kind: rowLink, Do: func(a *App, r *Row) { a.push(uninstallPage(a, l)) }},
+			{Label: "Removed apps", Kind: rowLink, Value: removedCount(),
+				Do: func(a *App, r *Row) { a.push(removedPage(a, l)) }},
 			{Label: "Clear favourites", Kind: rowAction, Value: fmt.Sprintf("%d pinned", len(a.cfg.Pinned)),
 				Do: func(a *App, r *Row) {
 					a.cfg.Pinned = nil
@@ -705,10 +709,17 @@ func userPage(a *App) View {
 						if s == "" {
 							return
 						}
+						if !hostRE.MatchString(s) {
+							a.notify("Use letters, digits and - only", true)
+							return
+						}
 						a.withSudo("Needed to rename the device", func(pw string) {
 							a.background("Renaming...", func() error {
-								_, err := runSudo(pw, 15*time.Second, "hostnamectl", "set-hostname", s)
-								return err
+								if out, err := runSudo(pw, 60*time.Second, "hostnamectl", "set-hostname", s); err != nil {
+									return errors.New(lastError(out, err))
+								}
+								// keep /etc/hosts in step, or sudo stalls looking the new name up
+								return fixHosts(pw, s)
 							}, func(err error) {
 								if err != nil {
 									a.notify(err.Error(), true)
@@ -929,6 +940,22 @@ func systemPage(a *App) View {
 					}
 				})
 			}},
+		}
+		if name := hostname(); !hostnameListed(name) {
+			// the device name is missing from /etc/hosts: every admin action waits ~10 s
+			fix := &Row{Label: "Fix slow admin actions", Kind: rowAction, Value: "/ETC/HOSTS", Do: func(a *App, r *Row) {
+				a.withSudo("Needed to add "+name+" to /etc/hosts", func(pw string) {
+					a.background("Fixing /etc/hosts...", func() error { return fixHosts(pw, name) }, func(err error) {
+						if err != nil {
+							alert(a, "NOT FIXED", err.Error())
+						} else {
+							a.notify(name+" added to /etc/hosts", false)
+						}
+						l.Refresh(a, l)
+					})
+				})
+			}}
+			l.Rows = append([]*Row{fix}, l.Rows...)
 		}
 	}
 	l.Refresh(a, l)

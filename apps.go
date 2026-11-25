@@ -28,6 +28,7 @@ type Entry struct {
 	Comment  string
 	Terminal bool
 	Builtin  string // "" for desktop apps
+	Origin   string // a ZeroCode app's folder, from its "Made with ZeroCode (<folder>)" comment
 	glyph    []string
 	tint     RGB
 	icons    map[int]*Icon
@@ -133,6 +134,7 @@ func parseDesktop(path string) *Entry {
 		}
 	}
 	if strings.HasPrefix(e.Comment, "Made with ZeroCode") {
+		e.Origin = zcFolder(e.Comment)
 		e.Comment = ""
 	}
 	return e
