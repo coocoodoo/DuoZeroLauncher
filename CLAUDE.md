@@ -325,6 +325,10 @@ then reboot, or ask the user to restart it.
   Z/C seek, Enter or Space play/pause; Folders: Enter/C opens, Z goes up, A plays every song
   below. Esc closes Music; the music goes on, shown by a note in the status bar
   (`musicPlayer.active`). Settings in `~/.config/dslauncher/music` (vol, vis, dir).
+- Key-bar icons: `icons/{prev,play,pause,next,visual,queue,folder,music}.svg`, rendered to
+  `assets/icons/*.png` (20x20) by drawing each SVG on a 20x20 canvas in headless Chrome
+  (`chrome --headless=new --virtual-time-budget=5000 --dump-dom page.html`, the page writing the
+  PNGs' base64 into itself) and mapped in `barIcons`. This PC's ffmpeg has no librsvg.
 - Tests: `music_test.go` (real ffmpeg on generated tones when it's installed: play, pause,
   next, auto-advance, seek, bad files; spectrum; screens with `DSL_DOC_SHOTS`).
 
