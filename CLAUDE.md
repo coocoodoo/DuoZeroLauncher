@@ -308,6 +308,15 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.13.1)
+
+- Check for updates asks GitHub's API for the newest commit on main (`latestCommit`, header
+  `Accept: application/vnd.github.sha`) and reads `main.go` and downloads the source at that
+  commit (`updateURLs`, `updateRef`). The raw-file server caches branch URLs: after 0.13.0 was
+  pushed it kept serving 0.11.0's main.go for over ten minutes, so the Cardputer saw no update.
+  Without the API (60 requests an hour) it falls back to the branch. `update_urls_test.go`
+  (`DSL_UPDATE_LIVE=1` asks GitHub for real).
+
 ## Local changes (0.13.0)
 
 - Files, built in (`builtin:files`, icon from `icons/files-app.svg`). `files.go`: `listDir`

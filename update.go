@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -57,9 +58,49 @@ func newerVersion(a, b string) bool {
 	return false
 }
 
-// latestVersion reads the version from main.go on GitHub.
+var shaRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+// updateRef is what the last check found: the newest commit on the branch, or the branch's
+// name when GitHub's API couldn't be asked. The download uses the same, so it builds exactly
+// the version the check saw.
+var (
+	updateRefMu sync.Mutex
+	updateRef   = updateBranch
+)
+
+// latestCommit asks GitHub's API for the newest commit on the branch. GitHub's raw-file server
+// caches branch URLs for minutes (a push to main went unseen while it served the old main.go);
+// a commit's files never change, so reading them by commit is always current. "" if the API
+// can't be reached (it allows 60 unauthenticated requests an hour).
+func latestCommit() string {
+	out, err := run(15*time.Second, "curl", "-fsSL", "--max-time", "12", "-H", "Accept: application/vnd.github.sha",
+		"https://api.github.com/repos/"+updateRepo+"/commits/"+updateBranch)
+	if sha := strings.TrimSpace(out); err == nil && shaRe.MatchString(sha) {
+		return sha
+	}
+	return ""
+}
+
+// updateURLs are where to read main.go and download the source for a ref (a commit or a branch).
+func updateURLs(ref string) (mainGo, tarball string) {
+	mainGo = "https://raw.githubusercontent.com/" + updateRepo + "/" + ref + "/main.go"
+	tarball = "https://codeload.github.com/" + updateRepo + "/tar.gz/" + ref
+	if !shaRe.MatchString(ref) {
+		tarball = "https://codeload.github.com/" + updateRepo + "/tar.gz/refs/heads/" + ref
+	}
+	return
+}
+
+// latestVersion reads the version from main.go on GitHub, at the newest commit.
 func latestVersion() (string, error) {
-	url := "https://raw.githubusercontent.com/" + updateRepo + "/" + updateBranch + "/main.go"
+	ref := latestCommit()
+	if ref == "" {
+		ref = updateBranch
+	}
+	updateRefMu.Lock()
+	updateRef = ref
+	updateRefMu.Unlock()
+	url, _ := updateURLs(ref)
 	out, err := run(25*time.Second, "curl", "-fsSL", "--max-time", "20", url)
 	if err != nil {
 		return "", errors.New("can't reach GitHub")
@@ -139,7 +180,9 @@ func buildUpdate(want string, prog progressFn) (string, error) {
 	}
 	os.MkdirAll(tmp, 0o755)
 	tgz := filepath.Join(work, "src.tar.gz")
-	url := "https://codeload.github.com/" + updateRepo + "/tar.gz/refs/heads/" + updateBranch
+	updateRefMu.Lock()
+	_, url := updateURLs(updateRef)
+	updateRefMu.Unlock()
 	prog.report("Downloading Duo Launcher "+want+"...", 0.02)
 	done := make(chan struct{})
 	go whileRunning(done, func() {
