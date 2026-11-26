@@ -74,6 +74,13 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   source from this repository, builds it on the device and restarts into it (the previous
   version is kept; "Undo last update" puts it back). Needs Go at `~/.local/go`.
 
+## Music
+
+**Music** (on the home screen) plays the songs in `~/Music` (MP3, FLAC, OGG, WAV, M4A, Opus,
+AAC) with five particle visualizers. 4 previous, 5 play/pause, 6 next, 7 next visual, 8 the
+queue or the folders; F/X volume, Z/C seek. It keeps playing after you close it (a note shows
+in the status bar). Needs ffmpeg (`sudo apt install ffmpeg`).
+
 ## Duo Link: on a car stereo
 
 Settings > Launcher > **Duo Link** shows the Cardputer's screen on an Android car stereo (the

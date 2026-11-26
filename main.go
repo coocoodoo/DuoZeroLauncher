@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.9.0"
+const version = "0.10.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -93,6 +93,7 @@ type App struct {
 	link        *linkServer  // Duo Link: a car stereo showing this screen
 	linkKbd     linkKeyboard // writes the stereo's keys into the keyboard device
 	appRunning  atomic.Bool  // another app has the screen (runApp)
+	music       *musicPlayer // Music (built in): plays on when its screen is closed
 
 	loadingOn bool        // the loading ticks are playing (the busy screen's squares are on screen)
 	blanked   bool        // the panel is powered down (screenOff)
@@ -800,6 +801,12 @@ func (a *App) open(e *Entry) {
 		}
 		a.push(pictoMenu(a))
 		return
+	case "music":
+		if !a.launchBuiltin(e) {
+			a.snd.Play("open")
+		}
+		a.openMusic()
+		return
 	case "cli":
 		a.runTerminal(e, "")
 		return
@@ -979,6 +986,7 @@ func (a *App) launchFromHome(h *Home, e *Entry) {
 }
 
 func (a *App) shutdown() {
+	a.music.Stop() // (also its ffmpeg and pacat)
 	if a.link != nil {
 		a.link.shutdown()
 	}

@@ -66,6 +66,8 @@ func builtins() []*Entry {
 			IconPath: filepath.Join(launchRoot(), "share/images/math_100.png")},
 		{Key: "builtin:pictochat", Name: "PictoChat", Builtin: "pictochat",
 			Comment: "Draw and chat with Cardputers on this Wi-Fi", IconPath: "embed:apps/pictochat.png"},
+		{Key: "builtin:music", Name: "Music", Builtin: "music",
+			Comment: "Play songs from ~/Music, with visualizers", IconPath: "embed:apps/music.png"},
 		{Key: "builtin:dlplay", Name: "Download Play", Builtin: "dlplay",
 			Comment: "Share apps with a Cardputer on this Wi-Fi", IconPath: "embed:apps/dlplay.png"},
 		{Key: "builtin:settings", Name: "Settings", Builtin: "settings", Comment: "Screen, sound, network, you",

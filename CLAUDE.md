@@ -308,6 +308,26 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.10.0)
+
+- Music, built in (`builtin:music`, icon `assets/apps/music.png`): a Go port of the user's MP3
+  Player app (Rust, `../mp3-player`). `music.go` is the engine: ffmpeg decodes to s16le stereo
+  44.1 kHz, Duo applies the volume (0-100, never above: it clips) and writes to its own pacat
+  ("Duo Music", separate from Duo's UI sound stream); a 512-point FFT of a 22 kHz mono copy gives
+  38 log-spaced bands, plus a scope ring. ffprobe gives the length and artist, ffmpeg a 15x15
+  cover. The player is `App.music`: it keeps playing when the screen is closed, the screen is
+  off or another app runs, and moves on by itself (`ended`; a folder of unplayable files stops
+  with a message). Held Z/C seeks add up and jump 320 ms after the last press.
+- `music_fx.go`: the five visualizers (EMBERS NEBULA WARP RAIN PHOSPHOR), a 157x36 heat grid
+  drawn 2x with CRT rows (the original was 44 rows tall; Duo's title bar takes the space).
+- `music_view.go`: Now playing, Queue, Folders. Keys as in the original: 4 PREV, 5 PLAY/PAUSE,
+  6 NEXT, 7 VISUAL (on the lists: back to Now playing), 8 QUEUE/FOLDERS; Tab cycles; F/X volume,
+  Z/C seek, Enter or Space play/pause; Folders: Enter/C opens, Z goes up, A plays every song
+  below. Esc closes Music; the music goes on, shown by a note in the status bar
+  (`musicPlayer.active`). Settings in `~/.config/dslauncher/music` (vol, vis, dir).
+- Tests: `music_test.go` (real ffmpeg on generated tones when it's installed: play, pause,
+  next, auto-advance, seek, bad files; spectrum; screens with `DSL_DOC_SHOTS`).
+
 ## Local changes (0.9.0)
 
 - Duo Link (`link.go`, `link_app.go`; Settings > Launcher > Duo Link): an Android car stereo

@@ -611,6 +611,9 @@ func drawStatus(a *App, rx, y int, ink RGB) {
 		bx -= textW(label, 1, false) + 5
 	}
 	wx := bx - 13
+	if a.music.active() { // music plays in the background: a note left of the Wi-Fi bars
+		g.glyph(wx-8, y+5, artNote, 1, ink)
+	}
 	for i := 0; i < 4; i++ {
 		hgt := 2 + i*2
 		if st.WifiOn && i < st.WifiLevel {
