@@ -348,3 +348,26 @@ func TestPhotoScreens(t *testing.T) {
 		t.Fatalf("Esc should go back to the grid: %T", a.top())
 	}
 }
+
+// On the Cardputer: DSL_BIG_PHOTO=<a big JPEG> times opening it and its thumbnail.
+func TestPhotoBigOnDevice(t *testing.T) {
+	path := os.Getenv("DSL_BIG_PHOTO")
+	if path == "" {
+		t.Skip("set DSL_BIG_PHOTO")
+	}
+	setHome(t, t.TempDir())
+	t0 := time.Now()
+	p, err := loadPhoto(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("open %dx%d: %v (working copy %v)", p.w, p.h, time.Since(t0).Round(time.Millisecond), p.img.Bounds().Size())
+	t0 = time.Now()
+	if _, err := makeThumb(path); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("thumbnail: %v", time.Since(t0).Round(time.Millisecond))
+	t0 = time.Now()
+	makeThumb(path)
+	t.Logf("thumbnail again (cached): %v", time.Since(t0).Round(time.Millisecond))
+}
