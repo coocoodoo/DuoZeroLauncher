@@ -308,6 +308,15 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.11.1)
+
+- New apps show up by themselves (`appswatch.go`): Duo used to rescan only at start, after an
+  app closed, and after its own installs and uninstalls, so an app registered from outside
+  (`zc-app` over SSH, ZeroCode making one, a package) stayed missing until a restart. Every 3 s
+  (not while the screen is off or an app runs) `checkApps` compares the modification times of
+  `applications/` and `share/images/` and calls `appsChanged` when they moved.
+  `TestNewAppsShowUp`.
+
 ## Local changes (0.10.0)
 
 - Music, built in (`builtin:music`, icon `assets/apps/music.png`): a Go port of the user's MP3

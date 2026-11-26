@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.11.0"
+const version = "0.11.1"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -94,6 +94,8 @@ type App struct {
 	linkKbd     linkKeyboard // writes the stereo's keys into the keyboard device
 	appRunning  atomic.Bool  // another app has the screen (runApp)
 	music       *musicPlayer // Music (built in): plays on when its screen is closed
+	appsCheckAt time.Time    // checkApps: when the launcher folders were last looked at
+	appsStampV  string       // and what they looked like
 
 	loadingOn bool        // the loading ticks are playing (the busy screen's squares are on screen)
 	blanked   bool        // the panel is powered down (screenOff)
@@ -332,6 +334,7 @@ func (a *App) loop() {
 		a.idle()
 		a.checkBattery()
 		a.checkDoctorAsk()
+		a.checkApps()
 		a.checkAlarm()
 		if a.dimLevel < 2 && (a.dirty || a.animating() || a.now.Sub(frame) >= time.Second) {
 			a.draw()
