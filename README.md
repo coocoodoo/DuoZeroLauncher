@@ -77,7 +77,8 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
 ## Music
 
 **Music** (on the home screen) plays the songs in `~/Music` (MP3, FLAC, OGG, WAV, M4A, Opus,
-AAC) with five particle visualizers. 4 previous, 5 play/pause, 6 next, 7 next visual, 8 the
+AAC) with ten visualizers (embers, nebula, warp, rain, phosphor, a wireframe cube that breaks
+apart with the music, a hyperspace tunnel, a synthwave horizon, a DNA helix and fireworks). 4 previous, 5 play/pause, 6 next, 7 next visual, 8 the
 queue or the folders; F/X volume, Z/C seek. It keeps playing after you close it (a note shows
 in the status bar). Needs ffmpeg (`sudo apt install ffmpeg`).
 

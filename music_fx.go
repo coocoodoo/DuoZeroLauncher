@@ -16,7 +16,9 @@ const (
 	fxRamp     = 64
 )
 
-var fxModes = []string{"EMBERS", "NEBULA", "WARP", "RAIN", "PHOSPHOR"}
+var fxModes = []string{"EMBERS", "NEBULA", "WARP", "RAIN", "PHOSPHOR", "CUBE", "HYPER", "HORIZON", "HELIX", "FIREWORKS"}
+
+const fxCount = 10
 
 type fxPart struct{ x, y, vx, vy, life float32 }
 
@@ -34,9 +36,10 @@ type musicFx struct {
 	stars    [][3]float32
 	rings    [3][2]float32
 	lastMode int
-	pal      [5][fxRamp]uint16
-	dim      [5][fxRamp]uint16
-	fade     [5][256]uint8
+	pal      [fxCount][fxRamp]uint16
+	dim      [fxCount][fxRamp]uint16
+	fade     [fxCount][256]uint8
+	more     fxMore
 }
 
 func rgb565(r, g, b uint8) uint16 { return uint16(r>>3)<<11 | uint16(g>>2)<<5 | uint16(b>>3) }
@@ -62,7 +65,8 @@ func clampf(v, lo, hi float32) float32 {
 
 // fxAccent is the colour each visual uses for its frame corners.
 func fxAccent(mode int) RGB {
-	return []RGB{{255, 150, 50}, {200, 110, 255}, {110, 200, 255}, {70, 255, 150}, {255, 210, 90}}[mode%5]
+	return []RGB{{255, 150, 50}, {200, 110, 255}, {110, 200, 255}, {70, 255, 150}, {255, 210, 90},
+		{60, 230, 255}, {255, 60, 160}, {255, 80, 200}, {90, 230, 170}, {255, 200, 80}}[mode%fxCount]
 }
 
 func fxRampOf(stops [][3]uint8) (out [fxRamp]uint16) {
@@ -80,19 +84,24 @@ func fxRampOf(stops [][3]uint8) (out [fxRamp]uint16) {
 func newMusicFx() *musicFx {
 	bg := [3]uint8{10, 8, 20}
 	f := &musicFx{heat: make([]uint8, fxVW*fxVH), seed: 0x2f6e2b1d, avg: 0.1, lastMode: -1}
-	f.pal = [5][fxRamp]uint16{
+	f.pal = [fxCount][fxRamp]uint16{
 		fxRampOf([][3]uint8{bg, {60, 10, 40}, {170, 30, 40}, {255, 110, 30}, {255, 200, 70}, {255, 250, 220}}),
 		fxRampOf([][3]uint8{bg, {36, 16, 90}, {110, 40, 190}, {240, 70, 180}, {130, 220, 255}, {250, 250, 255}}),
 		fxRampOf([][3]uint8{bg, {12, 30, 90}, {30, 90, 200}, {80, 200, 255}, {200, 240, 255}, {255, 255, 255}}),
 		fxRampOf([][3]uint8{bg, {6, 40, 34}, {10, 110, 70}, {30, 210, 110}, {140, 255, 170}, {240, 255, 240}}),
 		fxRampOf([][3]uint8{bg, {70, 40, 10}, {190, 110, 20}, {255, 190, 60}, {255, 235, 150}, {255, 255, 240}}),
+		fxRampOf([][3]uint8{bg, {0, 40, 60}, {0, 130, 170}, {60, 225, 255}, {200, 250, 255}, {255, 255, 255}}),  // CUBE
+		fxRampOf([][3]uint8{bg, {50, 0, 60}, {150, 20, 140}, {255, 60, 120}, {255, 170, 90}, {255, 240, 200}}),  // HYPER
+		fxRampOf([][3]uint8{bg, {40, 10, 70}, {120, 30, 160}, {255, 60, 170}, {255, 180, 80}, {255, 250, 200}}), // HORIZON
+		fxRampOf([][3]uint8{bg, {10, 40, 30}, {30, 120, 90}, {90, 220, 170}, {220, 255, 150}, {255, 255, 230}}), // HELIX
+		fxRampOf([][3]uint8{bg, {60, 20, 10}, {200, 60, 30}, {255, 160, 40}, {255, 230, 120}, {255, 255, 255}}), // FIREWORKS
 	}
 	for m := range f.pal {
 		for i, c := range f.pal[m] {
 			f.dim[m][i] = lerp565(c, rgb565(10, 8, 20), 0.42) // the dark half of each scanline
 		}
 	}
-	for m, keep := range []float32{0.80, 0.87, 0.70, 0.84, 0.74} {
+	for m, keep := range []float32{0.80, 0.87, 0.70, 0.84, 0.74, 0.66, 0.70, 0.34, 0.74, 0.86} {
 		for v := 0; v < 256; v++ {
 			f.fade[m][v] = uint8(max(0, float32(v)*keep-1))
 		}
@@ -151,7 +160,9 @@ func (f *musicFx) step(mode int, raw *[fxNB]float32, scope *[fxScopeW]float32, d
 	if mode != f.lastMode {
 		f.lastMode = mode
 		f.parts = f.parts[:0]
+		f.more.rockets = f.more.rockets[:0]
 		clear(f.heat)
+		f.moreInit()
 	}
 	fade := &f.fade[mode]
 	for i, c := range f.heat {
@@ -190,8 +201,18 @@ func (f *musicFx) step(mode int, raw *[fxNB]float32, scope *[fxScopeW]float32, d
 		f.warp(k, hit, live)
 	case 3:
 		f.rain(&b, k, hit, live)
-	default:
+	case 4:
 		f.phosphor(scope, k, hit, live)
+	case 5:
+		f.cube(&b, k, hit, live)
+	case 6:
+		f.hyper(&b, k, hit, live)
+	case 7:
+		f.horizon(&b, k, hit, live)
+	case 8:
+		f.helix(&b, k, hit, live)
+	default:
+		f.fireworks(&b, k, hit, live)
 	}
 }
 

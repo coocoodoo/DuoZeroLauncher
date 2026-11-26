@@ -327,6 +327,12 @@ then reboot, or ask the user to restart it.
   (`musicPlayer.active`). Settings in `~/.config/dslauncher/music` (vol, vis, dir).
 - 0.10.1 (the user): no visualizer name, no "F/X VOLUME  Z/C SEEK" hint and no "Visual: ..."
   toast on Now playing; the keys still work (Fn+S/Fn+D are the volume keys people use).
+- 0.11.0: five more visualizers in `music_fx_more.go` (state in `fxMore`): CUBE (wireframe cube
+  with a smaller one inside; its 12 edges fly apart and tumble with bass and beats, sparks from
+  the corners on a hit, and drift back together when it's quiet), HYPER (hexagon tunnel),
+  HORIZON (synthwave sun, spectrum mountains with a valley for the sun, scrolling grid),
+  HELIX (double helix, rungs fill with their band, sparks on beats), FIREWORKS (rockets on beats,
+  spectrum skyline). `fxCount` = 10; `lineAll` draws long lines, `set` hides what's behind.
 - Key-bar icons: `icons/{prev,play,pause,next,visual,queue,folder,music}.svg`, rendered to
   `assets/icons/*.png` (20x20) by drawing each SVG on a 20x20 canvas in headless Chrome
   (`chrome --headless=new --virtual-time-budget=5000 --dump-dom page.html`, the page writing the

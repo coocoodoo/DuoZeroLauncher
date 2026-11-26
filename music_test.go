@@ -197,12 +197,31 @@ func TestMusicScreens(t *testing.T) {
 	for mode := 0; mode < len(fxModes); mode++ {
 		p.vmode = mode
 		p.stop = make(chan struct{}) // "playing", without a decode
-		for i := 0; i < 40; i++ {
+		for i := 0; i < 60; i++ {    // music-like input: a pulse every 12 frames, bands moving
+			beat := 0.0
+			if i%12 < 2 {
+				beat = 0.9
+			}
+			for j := range p.bands {
+				v := 0.2 + 0.5*math.Abs(math.Sin(float64(i)*0.21+float64(j)*0.35))
+				if j < 6 {
+					v = max(v, beat)
+				}
+				p.bands[j] = float32(min(v, 1))
+			}
 			now.last = time.Now().Add(-33 * time.Millisecond)
 			a.draw()
 		}
-		p.stop = nil
 		a.saveShot("music-now-" + strings.ToLower(fxModes[mode]))
+		if fxModes[mode] == "CUBE" { // and in a quiet bar it comes back together
+			p.bands = [fxNB]float32{}
+			for i := 0; i < 45; i++ {
+				now.last = time.Now().Add(-33 * time.Millisecond)
+				a.draw()
+			}
+			a.saveShot("music-now-cube-calm")
+		}
+		p.stop = nil
 	}
 	p.vmode = 0
 	a.replace(&MusicQueue{sel: 1})
