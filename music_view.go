@@ -173,7 +173,7 @@ func musicKeys(a *App, k cp0.Key, here string) bool {
 		p.Step(1)
 	case 3:
 		if here == "now" {
-			a.notify("Visual: "+p.NextVisual(), false)
+			p.NextVisual() // the picture changing says enough
 		} else {
 			a.replace(&MusicNow{fx: newMusicFx(), last: time.Now()})
 		}
@@ -336,14 +336,6 @@ func (v *MusicNow) Draw(a *App) {
 			g.rect(c[0], c[1]+i*c[3], 1, 1, acc)
 		}
 	}
-	label := fmt.Sprintf("%s %d/%d", fxModes[st.mode], st.mode+1, len(fxModes))
-	lw := textW(label, 1, false)
-	g.rect(8, musVisY-2, lw+6, 11, hex(0x0a0814))
-	g.text(11, musVisY-3, label, acc, 1, false)
-	hint := "F/X VOLUME   Z/C SEEK"
-	hw := textW(hint, 1, false)
-	g.rect(W-hw-14, musVisY+fxVH*2-8, hw+6, 11, hex(0x0a0814))
-	g.text(W-hw-11, musVisY+fxVH*2-9, hint, hex(0x847eb0), 1, false)
 
 	// the song
 	y := musInfo

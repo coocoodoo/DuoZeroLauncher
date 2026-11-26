@@ -325,6 +325,8 @@ then reboot, or ask the user to restart it.
   Z/C seek, Enter or Space play/pause; Folders: Enter/C opens, Z goes up, A plays every song
   below. Esc closes Music; the music goes on, shown by a note in the status bar
   (`musicPlayer.active`). Settings in `~/.config/dslauncher/music` (vol, vis, dir).
+- 0.10.1 (the user): no visualizer name, no "F/X VOLUME  Z/C SEEK" hint and no "Visual: ..."
+  toast on Now playing; the keys still work (Fn+S/Fn+D are the volume keys people use).
 - Key-bar icons: `icons/{prev,play,pause,next,visual,queue,folder,music}.svg`, rendered to
   `assets/icons/*.png` (20x20) by drawing each SVG on a 20x20 canvas in headless Chrome
   (`chrome --headless=new --virtual-time-budget=5000 --dump-dom page.html`, the page writing the
