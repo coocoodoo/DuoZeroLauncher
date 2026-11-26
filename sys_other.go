@@ -10,3 +10,5 @@ func execSelf(string) {}
 func reapOrphans()    {}
 
 func kdMode() (int, bool) { return 0, false }
+
+func evKeyBits(string) []byte { return nil }

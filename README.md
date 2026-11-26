@@ -74,6 +74,21 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   source from this repository, builds it on the device and restarts into it (the previous
   version is kept; "Undo last update" puts it back). Needs Go at `~/.local/go`.
 
+## Duo Link: on a car stereo
+
+Settings > Launcher > **Duo Link** shows the Cardputer's screen on an Android car stereo (the
+cheap aftermarket kind) and lets the stereo press its keys: the arrows, OK, Back and Tab beside
+the picture, a tap on Duo's key bar for keys 4-8, a swipe for the arrows, and the stereo's
+keyboard for typing. It shows apps Duo starts, too.
+
+1. Turn Duo Link on, and put the stereo and the Cardputer on the same Wi-Fi (the stereo's
+   hotspot works).
+2. Once: open `http://<the Cardputer's address>:47140` in the stereo's browser and install the
+   Duo Link app from there (the address is on the Duo Link page).
+3. Open Duo Link on the stereo, tap the Cardputer, and type the code it shows.
+
+The app's source is in `android/duolink` (`build.sh` builds it).
+
 ## Doctor: setting up a Cardputer
 
 Settings > System > **Doctor** checks that the Cardputer has the system changes Duo relies on

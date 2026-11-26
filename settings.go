@@ -545,6 +545,7 @@ func launcherPage(a *App) View {
 				}},
 			{Label: "Show or hide apps", Kind: rowLink, Value: fmt.Sprintf("%d hidden", hidden),
 				Do: func(a *App, r *Row) { a.push(appsVisibility(a, l)) }},
+			{Label: "Duo Link (car stereo)", Kind: rowLink, Value: linkSummary(a), Do: func(a *App, r *Row) { a.push(linkPage(a)) }},
 			{Label: "Uninstall apps", Kind: rowLink, Do: func(a *App, r *Row) { a.push(uninstallPage(a, l)) }},
 			{Label: "Removed apps", Kind: rowLink, Value: removedCount(),
 				Do: func(a *App, r *Row) { a.push(removedPage(a, l)) }},

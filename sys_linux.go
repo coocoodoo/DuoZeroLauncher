@@ -63,3 +63,18 @@ func kdMode() (mode int, ok bool) {
 	}
 	return int(m), true
 }
+
+// evKeyBits reads which keys an input device declares (EVIOCGBIT(EV_KEY)); nil if it can't.
+func evKeyBits(path string) []byte {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	bits := make([]byte, 96) // KEY_MAX 0x2ff
+	req := uintptr(0x80000000 | len(bits)<<16 | 'E'<<8 | 0x20 + 1)
+	if _, _, e := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), req, uintptr(unsafe.Pointer(&bits[0]))); e != 0 {
+		return nil
+	}
+	return bits
+}

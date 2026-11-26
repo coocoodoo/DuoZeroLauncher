@@ -308,6 +308,31 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.9.0)
+
+- Duo Link (`link.go`, `link_app.go`; Settings > Launcher > Duo Link): an Android car stereo
+  shows this screen and sends keys back. The protocol is in `link.go`'s header (TCP 47140,
+  "DLK1", typed messages; discovery "DUOLINK1 {json}" on UDP 47141). Frames are read back from
+  the framebuffer (`cp0.Screen.CaptureInto`), so apps Duo starts show too; 32x10 tiles are
+  compared and changed runs sent zlib'd, at most 25 fps with 2 frames unacknowledged.
+- Keys from the stereo are written into the keyboard's event device (`linkKeyboard`, evdev
+  write), so Duo and every app reading it get them. The kernel only passes keys the keyboard
+  declares (`evKeyBits`); others go straight into Duo (`cp0.Keys.Inject`) while Duo is in front,
+  and arrows become F/X/Z/C in other apps. Only the Cardputer's own keys are accepted
+  (`cp0.KnownKey`, never power); keys still held when a stereo leaves are released. Text is
+  typed with `cp0.KeyFor` (Shift + key).
+- Pairing: a 4-digit code on the Cardputer (`LinkPair`, Esc/8 refuses), 5 tries then the
+  address waits a minute, 2 minutes to type it; the stereo keeps a token, Duo only its SHA-256
+  (`~/.config/dslauncher/duolink.json`). One stereo at a time. While one is connected the
+  screen doesn't dim or turn off by itself (`linkBusy`).
+- The Android app is `android/duolink` (plain Java, no libraries, minSdk 21). `build.sh` builds
+  it without Gradle (aapt2, javac --release 8, d8, zipalign, apksigner; key in
+  `~/.android/duolink.keystore`) into `assets/duolink.apk`, which is embedded and served at
+  `http://<address>:47140/` for the stereo's browser. Rebuild and commit the APK after changing
+  the app. This SDK's d8 crashes on inner/anonymous classes from newer javac: use static nested
+  classes and lambdas.
+- Tests: `link_test.go` (pairing, frames, keys, tokens, wrong codes, HTTP, screens).
+
 ## Local changes (0.8.2)
 
 - The Doctor explains itself (the user: verify what's already done, say whether anything is

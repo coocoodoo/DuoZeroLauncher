@@ -106,22 +106,30 @@ func Open() *Screen {
 
 // Capture reads back what is on the panel now (whoever drew it) as RGB565 pixels.
 func (s *Screen) Capture() ([]uint16, error) {
+	px := make([]uint16, W*H)
+	return px, s.CaptureInto(px, nil)
+}
+
+// CaptureInto is Capture into px (W*H), reusing raw (stride*H bytes, or nil) as the read buffer.
+func (s *Screen) CaptureInto(px []uint16, raw []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.f == nil {
-		return nil, os.ErrNotExist
+		return os.ErrNotExist
 	}
-	raw := make([]byte, s.stride*H)
-	if _, err := s.f.ReadAt(raw, 0); err != nil {
-		return nil, err
+	if len(raw) < s.stride*H {
+		raw = make([]byte, s.stride*H)
 	}
-	px := make([]uint16, W*H)
+	if _, err := s.f.ReadAt(raw[:s.stride*H], 0); err != nil {
+		return err
+	}
 	for y := 0; y < H; y++ {
+		row := raw[y*s.stride:]
 		for x := 0; x < W; x++ {
-			px[y*W+x] = binary.LittleEndian.Uint16(raw[y*s.stride+x*2:])
+			px[y*W+x] = binary.LittleEndian.Uint16(row[x*2:])
 		}
 	}
-	return px, nil
+	return nil
 }
 
 // GuardCorner turns the corner repair on or off. Turn it off before handing the screen to
@@ -382,12 +390,67 @@ type Keys struct {
 	down     map[int]*held
 }
 
+// KeyboardPath is the Cardputer keyboard's event device (CP0_KBD overrides it).
+func KeyboardPath() string {
+	if p := os.Getenv("CP0_KBD"); p != "" {
+		return p
+	}
+	return "/dev/input/by-path/platform-3f804000.i2c-event"
+}
+
+// Inject feeds a key event (val 1 down, 0 up) to these Keys as if the keyboard had sent it.
+func (k *Keys) Inject(code, val int) {
+	select {
+	case k.ch <- [2]int{code, val}:
+	default: // the queue is full: drop it rather than block
+	}
+}
+
+// KeyFor is the key (and whether Shift is held) that types r on the Cardputer keyboard.
+func KeyFor(r rune) (code int, shift, ok bool) {
+	if r == ' ' {
+		return 57, false, true
+	}
+	for c := 0; c < len(lower); c++ {
+		if lower[c] != 0 && rune(lower[c]) == r && c != 57 {
+			return c, false, true
+		}
+	}
+	for c := 0; c < len(upper); c++ {
+		if upper[c] != 0 && rune(upper[c]) == r && c != 57 {
+			return c, true, true
+		}
+	}
+	for c, s := range sym {
+		if s == r {
+			return c, false, true
+		}
+	}
+	return 0, false, false
+}
+
+// KnownKey says whether code is a key the Cardputer keyboard sends (a letter, digit, symbol,
+// modifier or one of the named keys), so a remote can't press anything else (like power).
+func KnownKey(code int) bool {
+	if code > 0 && code < len(lower) && lower[code] != 0 {
+		return true
+	}
+	if _, ok := sym[code]; ok {
+		return true
+	}
+	if _, ok := special[code]; ok {
+		return true
+	}
+	switch code {
+	case 42, 54, 29, 97, 56, 100:
+		return true
+	}
+	return false
+}
+
 // NewKeys opens the keyboard (CP0_KBD overrides the device).
 func NewKeys() *Keys {
-	path := os.Getenv("CP0_KBD")
-	if path == "" {
-		path = "/dev/input/by-path/platform-3f804000.i2c-event"
-	}
+	path := KeyboardPath()
 	k := &Keys{ch: make(chan [2]int, 128), mods: map[int]bool{}, down: map[int]*held{}}
 	go func() {
 		f, err := os.Open(path)

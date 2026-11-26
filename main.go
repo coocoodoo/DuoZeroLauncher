@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.8.2"
+const version = "0.9.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -90,6 +90,9 @@ type App struct {
 	batWarned   int         // low-battery warning shown: 0 none, 1 low, 2 almost empty
 	doctorAsk   []*docCheck // the start-up check found these; asked about once the home screen shows
 	doctorAskFP string
+	link        *linkServer  // Duo Link: a car stereo showing this screen
+	linkKbd     linkKeyboard // writes the stereo's keys into the keyboard device
+	appRunning  atomic.Bool  // another app has the screen (runApp)
 
 	loadingOn bool        // the loading ticks are playing (the busy screen's squares are on screen)
 	blanked   bool        // the panel is powered down (screenOff)
@@ -144,8 +147,12 @@ func main() {
 	if a.cfg.Jingle && !a.sim {
 		a.snd.Play(a.startupSound())
 	}
+	a.link = a.newLink()
 	if !a.sim {
 		go a.doctorAtStart()
+		if a.cfg.LinkOn {
+			a.startLink()
+		}
 	}
 	a.loop()
 	a.shutdown()
@@ -550,7 +557,7 @@ func (a *App) dispatch(k cp0.Key) {
 
 // idle dims and then blanks the screen when nothing is pressed for a while.
 func (a *App) idle() {
-	if a.sim || a.cfg.DimAfter <= 0 {
+	if a.sim || a.cfg.DimAfter <= 0 || a.linkBusy() {
 		return
 	}
 	quiet := time.Since(a.lastKey)
@@ -874,9 +881,11 @@ func (a *App) runApp(e *Entry, argv []string, env []string) {
 	err := cmd.Start()
 	if err == nil {
 		a.keys.pause(true)
+		a.appRunning.Store(true)
 		stopShots := a.watchScreenshots() // Fn+J still takes screenshots inside the app
 		err = cmd.Wait()
 		stopShots()
+		a.appRunning.Store(false)
 		a.keys.pause(false)
 	}
 	a.guardCorner(true)
@@ -970,6 +979,9 @@ func (a *App) launchFromHome(h *Home, e *Entry) {
 }
 
 func (a *App) shutdown() {
+	if a.link != nil {
+		a.link.shutdown()
+	}
 	if a.blanked { // never leave whatever runs next with the panel powered down
 		a.scr.Blank(false)
 		a.blanked = false

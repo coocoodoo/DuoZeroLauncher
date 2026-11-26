@@ -36,6 +36,7 @@ type Config struct {
 	AlarmM     int
 	PIN        string
 	LockOnWake bool
+	LinkOn     bool // Duo Link: show the screen on a car stereo
 	path       string
 }
 
@@ -130,6 +131,8 @@ func loadConfig() *Config {
 			c.PIN = v
 		case "lock_on_wake":
 			c.LockOnWake = b
+		case "duo_link":
+			c.LinkOn = b
 		}
 	}
 	return c
@@ -168,7 +171,7 @@ func (c *Config) Save() error {
 		"hidden=" + strings.Join(hidden, ","), "used=" + strings.Join(used, ","),
 		"last_ssh=" + c.LastSSH, "picto_addr=" + c.PictoAddr, "picto_code=" + c.PictoCode, "alarm_on=" + bit(c.AlarmOn),
 		"alarm_h=" + strconv.Itoa(c.AlarmH), "alarm_m=" + strconv.Itoa(c.AlarmM),
-		"pin=" + c.PIN, "lock_on_wake=" + bit(c.LockOnWake),
+		"pin=" + c.PIN, "lock_on_wake=" + bit(c.LockOnWake), "duo_link=" + bit(c.LinkOn),
 	}
 	if err := os.MkdirAll(filepath.Dir(c.path), 0o755); err != nil {
 		return err
