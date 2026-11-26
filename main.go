@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.11.1"
+const version = "0.12.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -809,6 +809,12 @@ func (a *App) open(e *Entry) {
 			a.snd.Play("open")
 		}
 		a.openMusic()
+		return
+	case "photos":
+		if !a.launchBuiltin(e) {
+			a.snd.Play("open")
+		}
+		a.openPhotos()
 		return
 	case "cli":
 		a.runTerminal(e, "")

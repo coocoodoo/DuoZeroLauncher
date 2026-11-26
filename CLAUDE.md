@@ -308,6 +308,25 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.12.0)
+
+- Photos, built in (`builtin:photos`, icon `assets/apps/photos.png` from `icons/photos-app.svg`).
+  `photos.go` is the engine: Go's decoders for JPEG/PNG/GIF, ffmpeg (to PNG) for WebP, BMP, TIFF,
+  HEIC, AVIF; `shrink` area-averages while reading (fast paths for YCbCr/RGBA/NRGBA/Gray), so the
+  working copy is at most 1280x960; EXIF (`readExif`) gives the orientation, date, camera and
+  the camera's own thumbnail, which the grid uses instead of decoding the photo. Thumbnails
+  (60x45, cover-cropped, dithered RGB565) are cached in `~/.cache/dslauncher/thumbs` keyed by
+  path, size and time. `photoDecode` lets one big decode run at a time (memory). Delete moves to
+  the desktop trash (`~/.local/share/Trash`, with a .trashinfo).
+- `photos_view.go`: `PhotoGrid` (5x2 thumbnails, folders as tiles; 4 OPEN, 5 SLIDESHOW, 6 UP,
+  7 INFO, 8 BACK; starts in the folder last used, else ~/Pictures, ~/Screenshots, home) and
+  `PhotoView` (fit with area averaging, small pictures enlarged by whole steps; 4 PREV, 5 ZOOM
+  fit/2x/4x with arrow panning, 6 NEXT, 7 ROTATE, 8 INFO; Enter full screen, Space slideshow
+  every 5 s which keeps the screen on, Del to the trash, Esc zooms out then leaves; animated
+  GIFs play; a 0.3 s fade between photos; the next photo is prefetched).
+- Key-bar icons `icons/{photo,zoom,rotate,up}.svg`. Tests: `photos_test.go` (EXIF orientation
+  and thumbnail, shrink, rotate, folders, trash, GIF, BMP via ffmpeg, screens).
+
 ## Local changes (0.11.1)
 
 - New apps show up by themselves (`appswatch.go`): Duo used to rescan only at start, after an

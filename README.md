@@ -74,6 +74,14 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   source from this repository, builds it on the device and restarts into it (the previous
   version is kept; "Undo last update" puts it back). Needs Go at `~/.local/go`.
 
+## Photos
+
+**Photos** (on the home screen) shows your pictures as a grid of thumbnails, starting in
+`~/Pictures` (or `~/Screenshots`, where Duo's screenshots go). JPEG, PNG and GIF (animated too),
+plus WebP, BMP, TIFF and HEIC through ffmpeg; phone photos are turned upright. In a photo: 4/6
+previous/next, 5 zoom (2x, 4x; the arrows pan), 7 rotate, 8 info, Enter full screen, Space
+slideshow, Del to the trash.
+
 ## Music
 
 **Music** (on the home screen) plays the songs in `~/Music` (MP3, FLAC, OGG, WAV, M4A, Opus,
