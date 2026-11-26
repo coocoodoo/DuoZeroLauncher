@@ -74,6 +74,17 @@ launcher only when you pick Settings > Launcher > "Back to the system launcher".
   source from this repository, builds it on the device and restarts into it (the previous
   version is kept; "Undo last update" puts it back). Needs Go at `~/.local/go`.
 
+## Files
+
+**Files** (on the home screen) is a file manager. 4 open, 5 mark (or Space), 6 menu, 7 places,
+8 back; Z goes up a folder, "/" filters, a letter jumps to it, Ctrl+C / Ctrl+X / Ctrl+V copy,
+cut and paste, Del moves to the trash. The menu also renames, makes folders and text files,
+zips and unzips (.zip, .tar.gz), searches below a folder, sorts (name, date, size, type),
+shows hidden files, bookmarks folders and shows properties (with folder sizes). Places: home,
+Pictures, Music, Screenshots, Downloads, PS1 games, apps, bookmarks, drives, the whole system and
+the trash (restore or empty). Pictures open in Photos, songs in Music, PS1 games in PS1, scripts in
+the terminal, text and code in a viewer with search (binary files in hex).
+
 ## Photos
 
 **Photos** (on the home screen) shows your pictures as a grid of thumbnails, starting in

@@ -308,6 +308,33 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.13.0)
+
+- Files, built in (`builtin:files`, icon from `icons/files-app.svg`). `files.go`: `listDir`
+  (folders first; name in natural order, date, size or type), `kindOf` (by extension; the
+  executable bit), `pasteInto` (copy, or move: rename on the same drive, else copy then delete;
+  links copied as links; "name (2).ext" when taken, keeping .tar.gz together; never into
+  itself; progress and stop, no half-written file left), `zipPaths`, `extractArchive` (.zip,
+  .tar, .tar.gz, .tgz into a new folder; absolute paths, ".." and links skipped; 4 GB cap),
+  `searchFiles` (names below a folder, 12 deep, 500 at most), the desktop trash (`trashList`,
+  `restore`, `erase`), `readPreview` (binary detection), settings in
+  `~/.config/dslauncher/files` (dir, sort, hidden, bookmarks). `diskSpace`/`sameDevice` are
+  in sys_linux.go (stand-ins in sys_other.go).
+- `files_view.go`: `FileBrowser` (4 OPEN, 5 MARK or Space, 6 MENU, 7 PLACES, 8 BACK; Enter/C
+  open, Z/Backspace up; "/" filter, a letter jumps, Ctrl+C/X/V/A, Del to the trash, "."
+  hidden files; Esc clears the filter, then the marks, then leaves), `PopMenu` (a reusable
+  pop-up list), `menu` (open, open with, copy, cut, paste, rename, delete, new folder/file,
+  zip, extract, search, filter, mark all, sort, hidden, bookmark, properties), `places`
+  (home folders that exist, bookmarks, /media and /mnt drives, /, trash), `TrashView` (restore,
+  delete for good, empty), `TextFileView` (text with line numbers, wrap or sideways scroll,
+  find and find again, top/end; hex for binary files; first 512 KB), properties as a `DocText`
+  with the folder size added up in the background. Opening: pictures in Photos, sounds in
+  Music, PS1 games in the PS1 app (`~/apps/ps1/run.sh <game>`), scripts and programs in Tiny
+  Terminal (after asking), archives extracted (after asking), the rest in the text viewer.
+  Long jobs (`job`) show progress and stop on Esc.
+- Tests: `files_test.go` (sorting, names, copy/move/stop, zip and tar.gz with path attacks,
+  search, trash, preview, screens).
+
 ## Local changes (0.12.0)
 
 - Photos, built in (`builtin:photos`, icon `assets/apps/photos.png` from `icons/photos-app.svg`).

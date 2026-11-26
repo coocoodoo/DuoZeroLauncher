@@ -425,6 +425,8 @@ var barIcons = map[*string]string{
 	&artVisual[0]: "visual", &artQueue[0]: "queue", &artFolder[0]: "folder", &artMusic[0]: "music",
 	// Photos
 	&artPhoto[0]: "photo", &artZoom[0]: "zoom", &artRotate[0]: "rotate", &artUp[0]: "up",
+	// Files
+	&artPlaces[0]: "places",
 }
 
 func barIcon(art []string) *Tex {

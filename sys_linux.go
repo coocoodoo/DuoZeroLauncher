@@ -78,3 +78,21 @@ func evKeyBits(path string) []byte {
 	}
 	return bits
 }
+
+// diskSpace is the free and total space of the drive holding path (-1 if unknown).
+func diskSpace(path string) (free, total int64) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(path, &st); err != nil {
+		return -1, -1
+	}
+	return int64(st.Bavail) * int64(st.Bsize), int64(st.Blocks) * int64(st.Bsize)
+}
+
+// sameDevice: a and b are on the same drive (so a move is a rename).
+func sameDevice(a, b string) bool {
+	var sa, sb syscall.Stat_t
+	if syscall.Stat(a, &sa) != nil || syscall.Stat(b, &sb) != nil {
+		return false
+	}
+	return sa.Dev == sb.Dev
+}

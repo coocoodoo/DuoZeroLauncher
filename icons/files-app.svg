@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="back" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2c14e"/><stop offset="1" stop-color="#d99a1c"/></linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd970"/><stop offset="1" stop-color="#f0ae2a"/></linearGradient>
+  </defs>
+  <path d="M10 26 Q10 20 16 20 H38 L46 28 H84 Q90 28 90 34 V78 Q90 84 84 84 H16 Q10 84 10 78 Z" fill="url(#back)" stroke="#5a3d08" stroke-width="2.4" stroke-linejoin="round"/>
+  <rect x="22" y="30" width="44" height="34" rx="2" fill="#ffffff" stroke="#6b6b6b" stroke-width="1.6" transform="rotate(-6 44 47)"/>
+  <rect x="34" y="27" width="44" height="34" rx="2" fill="#eef6ff" stroke="#6b6b6b" stroke-width="1.6" transform="rotate(5 56 44)"/>
+  <path d="M40 36 H70 M40 42 H66 M40 48 H70" stroke="#8aa0b8" stroke-width="2.2" stroke-linecap="round" transform="rotate(5 56 44)"/>
+  <path d="M10 44 Q10 40 14 40 H86 Q90 40 90 44 L87 80 Q86.6 84 82 84 H18 Q13.4 84 13 80 Z" fill="url(#front)" stroke="#5a3d08" stroke-width="2.4" stroke-linejoin="round"/>
+</svg>
