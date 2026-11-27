@@ -445,6 +445,9 @@ var tileIcons = map[*string]string{
 	&artBluetooth[0]: "bluetooth", &artPlug[0]: "ports", &artBattery[0]: "battery", &artLauncher[0]: "launcher",
 	&artDev[0]: "developer", &artUser[0]: "user", &artClock[0]: "clock", &artSystem[0]: "system",
 	&artPicto[0]: "pictochat",
+	// the second page
+	&artLinkTile[0]: "link", &artMusic[0]: "music", &artPhoto[0]: "photos", &artFolder[0]: "files",
+	&artSharing[0]: "sharing", &artDoctor[0]: "doctor", &artRefresh[0]: "updates",
 }
 
 func tileIcon(art []string) *Tex {

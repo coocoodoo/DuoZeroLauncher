@@ -374,7 +374,7 @@ func newPhotoView(grid *PhotoGrid, items []photoItem, idx int, slide bool) *Phot
 	v := &PhotoView{grid: grid, items: items, idx: idx, slide: slide, cache: map[int]*photo{}, loadFor: -1}
 	if slide {
 		v.full = true
-		v.nextAt = time.Now().Add(5 * time.Second)
+		v.nextAt = time.Now().Add(slideEvery())
 	}
 	return v
 }
@@ -522,8 +522,8 @@ func (v *PhotoView) Key(a *App, k cp0.Key) {
 		a.pop()
 	case k.Name == "SPACE" || k.Ch == ' ':
 		v.slide = !v.slide
-		v.nextAt = time.Now().Add(5 * time.Second)
-		a.notify(map[bool]string{true: "Slideshow: a photo every 5 seconds", false: "Slideshow stopped"}[v.slide], false)
+		v.nextAt = time.Now().Add(slideEvery())
+		a.notify(map[bool]string{true: fmt.Sprintf("Slideshow: a photo every %d seconds", int(slideEvery().Seconds())), false: "Slideshow stopped"}[v.slide], false)
 	case k.Name == "ENTER":
 		v.full = !v.full
 		v.viewKey = ""
@@ -673,7 +673,7 @@ func (v *PhotoView) Draw(a *App) {
 	if v.slide {
 		a.lastKey = now // a slideshow keeps the screen on
 		if now.After(v.nextAt) && v.ph != nil {
-			v.nextAt = now.Add(5 * time.Second)
+			v.nextAt = now.Add(slideEvery())
 			v.show(a, v.idx+1)
 		}
 	}
@@ -766,3 +766,6 @@ func (v *PhotoView) drawInfo(a *App) {
 		g.textC(W/2, y+20+i*12, fit(l, w-14, 1, false), cWhite, 1, false)
 	}
 }
+
+// slideEvery is the slideshow's pace (Settings > Photos).
+func slideEvery() time.Duration { return time.Duration(loadPhotosConf().slide) * time.Second }

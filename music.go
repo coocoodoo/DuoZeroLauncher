@@ -327,6 +327,14 @@ func (p *musicPlayer) NextVisual() string {
 	return fxModes[p.vmode]
 }
 
+// SetVisual picks a visualizer (Settings > Music).
+func (p *musicPlayer) SetVisual(i int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.vmode = max(0, i) % len(fxModes)
+	p.saveLocked()
+}
+
 // Stop ends playback (Duo is closing).
 func (p *musicPlayer) Stop() {
 	if p == nil {

@@ -30,7 +30,7 @@ type Settings struct {
 }
 
 func newSettings(a *App) *Settings {
-	return &Settings{t0: time.Now(), tiles: []tile{
+	s := &Settings{t0: time.Now(), tiles: []tile{
 		{"Screen", artScreen, screenPage}, {"Speaker", artSpeaker, speakerPage},
 		{"Wi-Fi", artWifi, wifiPage}, {"Ethernet", artEthernet, ethernetPage},
 		{"Bluetooth", artBluetooth, bluetoothPage}, {"Ports", artPlug, portsPage},
@@ -38,6 +38,8 @@ func newSettings(a *App) *Settings {
 		{"Developer", artDev, developerPage}, {"User", artUser, userPage},
 		{"Clock", artClock, clockPage}, {"System", artSystem, systemPage},
 	}}
+	s.tiles = append(s.tiles, settingsPage2()...)
+	return s
 }
 
 func (s *Settings) Animating(a *App) bool { return time.Since(s.t0) < 300*time.Millisecond }
@@ -57,8 +59,17 @@ func (s *Settings) Key(a *App, k cp0.Key) {
 		move(-1)
 	case k.Name == "RIGHT":
 		move(1)
-	case k.Name == "UP" || k.Name == "DOWN":
-		move(6)
+	case k.Name == "UP" || k.Name == "DOWN": // the other row of this page
+		start := s.sel / tilesPerPage * tilesPerPage
+		to := start + (s.sel-start+6)%tilesPerPage
+		s.sel = min(to, n-1)
+		s.t0 = time.Now()
+		a.snd.Play("move")
+	case k.Slot() == 1 && s.pages() > 1: // turn the page
+		p := (s.sel/tilesPerPage + 1) % s.pages()
+		s.sel = min(p*tilesPerPage+s.sel%tilesPerPage, n-1)
+		s.t0 = time.Now()
+		a.snd.Play("move")
 	case k.Name == "ENTER" || k.Slot() == 0:
 		a.snd.Play("open")
 		a.push(s.tiles[s.sel].open(a))
@@ -66,14 +77,22 @@ func (s *Settings) Key(a *App, k cp0.Key) {
 }
 
 func (s *Settings) Bar(a *App) []BarItem {
-	return []BarItem{{"OPEN", artOpen, false}, {}, {}, {}, {"BACK", artBack, false}}
+	turn := BarItem{"PAGE 2", artRight, false}
+	if s.sel >= tilesPerPage {
+		turn = BarItem{"PAGE 1", artLeft, false}
+	}
+	return []BarItem{{"OPEN", artOpen, false}, turn, {}, {}, {"BACK", artBack, false}}
 }
 
 func (s *Settings) Draw(a *App) {
 	g := a.g
-	pageTitle(a, "Settings", artGear)
+	pg := s.sel / tilesPerPage
+	pageTitle(a, fmt.Sprintf("Settings  %d/%d", pg+1, s.pages()), artGear)
 	for i, t := range s.tiles {
-		col, row := i%6, i/6
+		if i/tilesPerPage != pg {
+			continue
+		}
+		col, row := i%6, i%tilesPerPage/6
 		x, y := 6+col*52, 21+row*55
 		focus := i == s.sel
 		bounce := 0

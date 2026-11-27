@@ -552,10 +552,8 @@ func photoFolder(dir string) []photoItem {
 // photosStart is where Photos opens: the folder last used, else ~/Pictures, ~/Screenshots
 // (Duo's screenshots), or home.
 func photosStart() string {
-	if b, err := os.ReadFile(photosConfPath()); err == nil {
-		if d := strings.TrimSpace(strings.TrimPrefix(string(b), "dir=")); isDir(d) {
-			return d
-		}
+	if d := loadPhotosConf().dir; isDir(d) {
+		return d
 	}
 	for _, d := range []string{filepath.Join(homeDir(), "Pictures"), screenshotDir()} {
 		if isDir(d) {
@@ -567,7 +565,11 @@ func photosStart() string {
 
 func photosConfPath() string { return filepath.Join(filepath.Dir(configPath()), "photos") }
 
-func savePhotosDir(d string) { writeFileAtomic(photosConfPath(), "dir="+d+"\n", 0o644) }
+func savePhotosDir(d string) {
+	c := loadPhotosConf()
+	c.dir = d
+	c.save()
+}
 
 // moveToTrash puts a file in the desktop trash (~/.local/share/Trash), where file managers
 // can put it back.

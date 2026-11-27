@@ -308,6 +308,15 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.14.0)
+
+- Settings has a second page (`settings2.go`, `tilesPerPage` 12): Duo Link, Music (volume,
+  visualizer, folder, play order), Photos (slideshow pace, thumbnail cache), Files (hidden
+  files, sort, bookmarks, trash), Sharing, Doctor, Updates (version, check, undo). Key 5 turns
+  the page; Up/Down switch rows within a page. Tile icons `icons/settings/{link,music,photos,
+  files,sharing,doctor,updates}.svg` -> `assets/tiles/*.png` (24 px). Photos' settings file is
+  now `dir=` and `slide=` lines (`loadPhotosConf`). `TestSettingsPage2`.
+
 ## Local changes (0.13.1)
 
 - Check for updates asks GitHub's API for the newest commit on main (`latestCommit`, header
