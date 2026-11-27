@@ -308,6 +308,24 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.16.0)
+
+- Music: shuffle and repeat (`music_extras.go`; off / all / one, saved in the music config;
+  `orderFrom` builds the play order starting with the chosen song, `autoNext` follows it at
+  the end of a song: repeat one replays, repeat off stops after the last, shuffle with repeat
+  all reshuffles each round; NEXT/PREV step through the same order). S and R in Music; SHUF /
+  RPT1 / NO RPT shown in the song panel; Settings > Music has the rows.
+- Media keys: cp0 names 164 PLAYPAUSE, 163 NEXTSONG, 165 PREVIOUSSONG, 166 STOPCD (the
+  keyboard's Fn+Q / Fn+E / Fn+W, still to confirm on the device); `App.handle` sends them to
+  `mediaKey` from any screen, with the screen off too; PLAY with nothing loaded plays the music
+  folder. `watchRemotes` reads Bluetooth remotes (headphones, cars): every 5 s it looks for
+  "AVRCP" devices in /proc/bus/input/devices and reads their media keys (BlueZ needs the
+  uinput module to make that device).
+- Now playing: on the lock screen a bubble (title, artist or time, progress) replaces the
+  message, and 4 / 5 / 6 work there without unlocking (`lockMusicKey`); on the home screen the
+  title bar shows the song after a note while it plays (`homeTitle`).
+- Tests: `music_extras_test.go` (play order, AVRCP parsing, media keys, panels).
+
 ## Local changes (0.15.0)
 
 - Text editor (`editor.go`, `Editor`, a TextView so letters type; the arrows are the Fn

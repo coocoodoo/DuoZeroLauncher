@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.15.0"
+const version = "0.16.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -153,6 +153,7 @@ func main() {
 	a.link = a.newLink()
 	if !a.sim {
 		go a.doctorAtStart()
+		go a.watchRemotes()
 		if a.cfg.LinkOn {
 			a.startLink()
 		}
@@ -398,6 +399,15 @@ func (a *App) handle(k cp0.Key) {
 	if isScreenshotKey(k) { // Fn+J: on every screen that is showing
 		if a.dimLevel == 0 {
 			a.screenshot()
+		}
+		return
+	}
+	if isMediaKey(k) { // Fn+Q / Fn+W / Fn+E (and Bluetooth remotes): Music, from anywhere
+		if a.dimLevel == 1 {
+			a.wake()
+		}
+		if !k.Repeat {
+			a.mediaKey(k.Name)
 		}
 		return
 	}

@@ -283,7 +283,12 @@ func drawUpper(a *App, calendar bool) {
 	g.dsGrid(0, barH, paneL, 132-barH)
 	g.dsBar(0, 0, paneL, barH, a.theme())
 	ink := inkOn(a.theme())
-	g.text(5, 4, fit(a.cfg.Name, paneL-24, 1, false), ink, 1, false)
+	if title := homeTitle(a); title != a.cfg.Name { // a song playing: its name, after a note
+		g.glyph(9, 9, artNote, 1, ink)
+		g.text(15, 4, fit(strings.TrimPrefix(title, "~ "), paneL-34, 1, false), ink, 1, false)
+	} else {
+		g.text(5, 4, fit(a.cfg.Name, paneL-24, 1, false), ink, 1, false)
+	}
 	if a.cfg.AlarmOn {
 		g.artIcon(paneL-9, 8, artBell, 11, ink)
 	}

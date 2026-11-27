@@ -375,7 +375,8 @@ var special = map[int]string{1: "ESC", 14: "BACKSPACE", 15: "TAB", 28: "ENTER", 
 	108: "DOWN", 105: "LEFT", 106: "RIGHT", 102: "HOME", 107: "END", 104: "PGUP", 109: "PGDN", 111: "DELETE",
 	113: "MUTE", 114: "VOLUMEDOWN", 115: "VOLUMEUP", // Fn+A, Fn+S, Fn+D on the Cardputer
 	224: "BRIGHTNESSDOWN", 225: "BRIGHTNESSUP", // Fn+U, Fn+I
-	99: "PRINT", 210: "PRINT"} // Fn+J (PrtSc): KEY_SYSRQ or KEY_PRINT depending on the keymap
+	99: "PRINT", 210: "PRINT", // Fn+J (PrtSc): KEY_SYSRQ or KEY_PRINT depending on the keymap
+	164: "PLAYPAUSE", 163: "NEXTSONG", 165: "PREVIOUSSONG", 166: "STOPCD"} // Fn+Q / Fn+E / Fn+W
 
 var nav = map[int]string{33: "UP", 45: "DOWN", 44: "LEFT", 46: "RIGHT"} // plain F, X, Z, C
 

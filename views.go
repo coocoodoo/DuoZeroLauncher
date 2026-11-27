@@ -296,6 +296,9 @@ func newLock(a *App) *Lock {
 }
 
 func (v *Lock) Key(a *App, k cp0.Key) {
+	if lockMusicKey(a, k) { // 4 5 6: the music, without unlocking
+		return
+	}
 	if k.Name != "TAB" && k.Name != "ENTER" {
 		return
 	}
@@ -337,6 +340,9 @@ func (v *Lock) Draw(a *App) {
 	msg := a.cfg.Message
 	if a.cfg.isBirthday(now) {
 		msg = "Happy birthday, " + a.cfg.Name + "!"
+	}
+	if drawLockMusic(a, 116, 84, W-124) {
+		msg = ""
 	}
 	if msg != "" {
 		bx, by, bw := 116, 84, W-124

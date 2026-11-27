@@ -208,8 +208,5 @@ func musicSettingsPage(a *App) View {
 	return l
 }
 
-// musicPlayRows are Settings > Music's play-order rows (shuffle, repeat).
-func musicPlayRows(a *App, l *RowList) []*Row { return nil }
-
 // sharingPage is Settings > Sharing.
 func sharingPage(a *App) View { return page("SHARING", artSharing) }

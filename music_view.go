@@ -301,6 +301,18 @@ func (v *MusicNow) Key(a *App, k cp0.Key) {
 	case "UP":
 		p.SetVol(p.state().vol + 5)
 		a.snd.Play("tick")
+	case "":
+		switch k.Ch {
+		case 's', 'S':
+			sh, _ := p.playOrder()
+			p.SetShuffle(!sh)
+			a.notify(map[bool]string{true: "Shuffle on", false: "Shuffle off"}[!sh], false)
+		case 'r', 'R':
+			_, rp := p.playOrder()
+			rp = (rp + 1) % 3
+			p.SetRepeat(rp)
+			a.notify("Repeat: "+strings.ToLower(repeatNames[rp]), false)
+		}
 	case "DOWN":
 		p.SetVol(p.state().vol - 5)
 		a.snd.Play("tick")
@@ -375,6 +387,9 @@ func (v *MusicNow) Draw(a *App) {
 		g.noClip()
 	}
 	n := fmt.Sprintf("VOL %d   %02d/%02d", st.vol, min(st.cur+1, len(st.tracks)), len(st.tracks))
+	if f := musicFlags(p.playOrder()); f != "" {
+		n = f + " " + n
+	}
 	who := musicASCII(st.meta.artist)
 	if who == "" {
 		who = "Unknown artist"

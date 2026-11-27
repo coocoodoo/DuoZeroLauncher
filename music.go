@@ -60,6 +60,10 @@ type musicPlayer struct {
 	changed  time.Time // the song changed (title scroll)
 	silent   bool
 	notify   func(msg string, bad bool)
+	shuffle  bool
+	repeat   int   // repeatOff, repeatAll, repeatOne
+	order    []int // the play order (shuffled, or 0..n-1)
+	opos     int   // where cur is in order
 
 	paused atomic.Bool
 	played atomic.Int64 // bytes played of the current decode
@@ -74,7 +78,7 @@ type musicPlayer struct {
 func musicConfPath() string { return filepath.Join(filepath.Dir(configPath()), "music") }
 
 func newMusicPlayer(silent bool, notify func(string, bool)) *musicPlayer {
-	p := &musicPlayer{vol: 80, silent: silent, notify: notify}
+	p := &musicPlayer{vol: 80, silent: silent, notify: notify, repeat: repeatAll}
 	if b, err := os.ReadFile(musicConfPath()); err == nil {
 		for _, l := range strings.Split(string(b), "\n") {
 			k, v, _ := strings.Cut(l, "=")
@@ -86,6 +90,10 @@ func newMusicPlayer(silent bool, notify func(string, bool)) *musicPlayer {
 				p.vmode = max(0, n) % len(fxModes)
 			case "dir":
 				p.dir = strings.TrimSpace(v)
+			case "shuffle":
+				p.shuffle = n == 1
+			case "repeat":
+				p.repeat = max(0, min(n, repeatOne))
 			}
 		}
 	}
@@ -94,7 +102,11 @@ func newMusicPlayer(silent bool, notify func(string, bool)) *musicPlayer {
 }
 
 func (p *musicPlayer) saveLocked() {
-	writeFileAtomic(musicConfPath(), fmt.Sprintf("vol=%d\nvis=%d\ndir=%s\n", p.vol, p.vmode, p.dir), 0o644)
+	sh := 0
+	if p.shuffle {
+		sh = 1
+	}
+	writeFileAtomic(musicConfPath(), fmt.Sprintf("vol=%d\nvis=%d\ndir=%s\nshuffle=%d\nrepeat=%d\n", p.vol, p.vmode, p.dir, sh, p.repeat), 0o644)
 }
 
 // musicDir is where Music starts looking: the folder last played, else ~/Music, else home.
@@ -169,6 +181,7 @@ func (p *musicPlayer) setTracks(paths []string) {
 	for i, t := range paths {
 		p.titles[i] = strings.TrimSuffix(filepath.Base(t), filepath.Ext(t))
 	}
+	p.order = nil
 }
 
 // killLocked stops the decode; it waits for it to end, so call it without holding up a
@@ -235,6 +248,7 @@ func (p *musicPlayer) Play(idx int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.fails = 0
+	p.orderFrom(idx)
 	p.playLocked(idx, 0, true)
 }
 
@@ -246,6 +260,7 @@ func (p *musicPlayer) PlayList(paths []string, idx int, dir string) {
 	p.dir = dir
 	p.saveLocked()
 	p.fails = 0
+	p.orderFrom(idx)
 	p.playLocked(idx, 0, true)
 }
 
@@ -281,7 +296,7 @@ func (p *musicPlayer) Step(d int) {
 		return
 	}
 	p.fails = 0
-	p.playLocked(p.cur+d, 0, true)
+	p.playLocked(p.stepIndex(d), 0, true)
 }
 
 // Seek moves by d seconds; held keys add up, and the jump happens once they stop.
@@ -369,7 +384,16 @@ func (p *musicPlayer) ended(done chan struct{}, heard bool, err error) {
 	if !heard {
 		p.notify("Music: skipped a file that won't play", true)
 	}
-	p.playLocked(p.cur+1, 0, true)
+	if p.repeat == repeatOne && heard {
+		p.playLocked(p.cur, 0, false)
+		return
+	}
+	next, ok := p.autoNext()
+	if !ok {
+		p.notify("Music: that was the last song (repeat is off)", false)
+		return
+	}
+	p.playLocked(next, 0, true)
 }
 
 // ---- the decode ----
