@@ -129,6 +129,14 @@ func stopHotspot() {
 	run(15*time.Second, "nmcli", "connection", "down", "id", hotspotConn)
 }
 
+// hotspotActive: Duo Link's Wi-Fi is up (by this Duo or an earlier one).
+func hotspotActive() bool {
+	if _, err := exec.LookPath("nmcli"); err != nil {
+		return false
+	}
+	return activeConnections()[hotspotConn]
+}
+
 // hotspotErr turns nmcli's complaint into something to act on.
 func hotspotErr(out string, err error) error {
 	msg := firstLine(out, err)

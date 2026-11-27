@@ -258,6 +258,7 @@ type Network struct {
 	InUse    bool
 	Saved    bool
 	Security string
+	Conn     string // the saved profile for this network, if any
 }
 
 // unescapeNM undoes nmcli's terse escaping of ':' and '\'.
@@ -299,12 +300,47 @@ func savedConnections() map[string]bool {
 	return saved
 }
 
+// savedSSIDs maps each saved network's SSID to its profile name, which can differ (Raspberry Pi
+// OS calls the network set up when the card was made "preconfigured"). Duo Link's own Wi-Fi is
+// left out.
+func savedSSIDs() map[string]string {
+	m := map[string]string{}
+	for name := range savedConnections() {
+		if name == hotspotConn {
+			continue
+		}
+		ssid := name
+		if out, err := run(4*time.Second, "nmcli", "-g", "802-11-wireless.ssid", "connection", "show", "id", name); err == nil {
+			if s := strings.TrimSpace(out); s != "" {
+				ssid = unescapeNM(s)
+			}
+		}
+		m[ssid] = name
+	}
+	return m
+}
+
+// activeConnections: the profiles up right now, by name.
+func activeConnections() map[string]bool {
+	act := map[string]bool{}
+	out, _ := run(4*time.Second, "nmcli", "-t", "-f", "NAME", "connection", "show", "--active")
+	for _, l := range strings.Split(out, "\n") {
+		if l = unescapeNM(strings.TrimSpace(l)); l != "" {
+			act[l] = true
+		}
+	}
+	return act
+}
+
 func scanWifi() ([]Network, error) {
 	out, err := run(20*time.Second, "nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list", "--rescan", "yes")
-	if err != nil {
-		return nil, err
+	if err != nil { // a scan was refused (too soon after the last one, say): the last results
+		out, err = run(20*time.Second, "nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list", "--rescan", "auto")
 	}
-	saved := savedConnections()
+	if err != nil {
+		return nil, errors.New(firstLine(out, err))
+	}
+	saved := savedSSIDs()
 	seen := map[string]int{}
 	var nets []Network
 	for _, l := range strings.Split(out, "\n") {
@@ -314,10 +350,11 @@ func scanWifi() ([]Network, error) {
 		}
 		sig, _ := strconv.Atoi(f[2])
 		n := Network{SSID: f[1], Signal: sig, InUse: f[0] == "*", Security: f[3],
-			Secure: f[3] != "" && f[3] != "--", Saved: saved[f[1]]}
+			Secure: f[3] != "" && f[3] != "--", Conn: saved[f[1]]}
+		n.Saved = n.Conn != ""
 		if i, ok := seen[n.SSID]; ok {
 			if n.Signal > nets[i].Signal || n.InUse {
-				n.Saved = nets[i].Saved || n.Saved
+				n.InUse = n.InUse || nets[i].InUse
 				nets[i] = n
 			}
 			continue
@@ -343,8 +380,9 @@ func connectWifi(ssid, password string, hidden bool) error {
 	return nil
 }
 
-func connectSaved(ssid string) error {
-	out, err := run(45*time.Second, "nmcli", "connection", "up", "id", ssid)
+// connectSaved brings up a saved profile by its name.
+func connectSaved(name string) error {
+	out, err := run(45*time.Second, "nmcli", "connection", "up", "id", name)
 	if err != nil {
 		return errors.New(firstLine(out, err))
 	}

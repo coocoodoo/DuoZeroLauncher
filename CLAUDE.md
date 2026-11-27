@@ -308,6 +308,16 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.20.1)
+
+- Switching Wi-Fi networks (`settings.go`): Settings > Wi-Fi > "Switch network" lists what's in
+  range; picking one connects (a saved one without asking, by its profile `Network.Conn` from
+  `savedSSIDs`, since profile names can differ from SSIDs, e.g. "preconfigured"). "Saved
+  networks" opens Connect / Forget per network (`savedActions`), so a saved network can be
+  joined even if the scan missed it. `joinNetwork` takes Duo Link's own Wi-Fi down first (same
+  radio) and sets Duo Link back to shared Wi-Fi (`leftLinkWifi`); scanning while that Wi-Fi is
+  up asks to turn it off (`errLinkWifiOn`). A refused rescan falls back to `--rescan auto`.
+
 ## Local changes (0.20.0)
 
 - Duo Link over the Cardputer's own Wi-Fi (`link_hotspot.go`): `startHotspot` (re)makes the

@@ -221,9 +221,15 @@ func wifiPage(a *App) View {
 			}},
 			{Label: "Connected to", Value: conn},
 			{Label: "Address", Value: orDash(st.IP)},
-			{Label: "Networks nearby", Kind: rowLink, Off: !on, Do: func(a *App, r *Row) { openNetworks(a, l) }},
+			{Label: "Switch network", Kind: rowLink, Off: !on, Do: func(a *App, r *Row) { openNetworks(a, l) }},
+			{Label: "Saved networks", Kind: rowLink, Do: func(a *App, r *Row) { openSaved(a, l) }},
 			{Label: "Join a hidden network", Kind: rowLink, Off: !on, Do: func(a *App, r *Row) { joinHidden(a, l) }},
-			{Label: "Saved networks", Kind: rowLink, Do: func(a *App, r *Row) { openSaved(a) }},
+		}
+		if a.linkWifiUp {
+			l.Rows[1].Value = "Duo Link's own Wi-Fi"
+			l.Footer = "Duo Link's Wi-Fi is on: switching turns it off"
+		} else {
+			l.Footer = ""
 		}
 	}
 	l.Refresh(a, l)
@@ -237,18 +243,73 @@ func orDash(s string) string {
 	return s
 }
 
+// joinNetwork connects with the busy screen. Duo Link's own Wi-Fi uses the same radio, so it
+// is taken down first, and Duo Link goes back to the shared Wi-Fi (until set up again).
+func joinNetwork(a *App, name string, connect func() error, done func()) {
+	hotspot := false
+	a.background("Connecting to "+name+"...", func() error {
+		if hotspotActive() {
+			hotspot = true
+			stopHotspot()
+		}
+		return connect()
+	}, func(err error) {
+		if hotspot {
+			a.leftLinkWifi()
+		}
+		a.status.refresh(true)
+		if err != nil {
+			a.notify(err.Error(), true)
+			return
+		}
+		a.notify("Connected to "+name, false)
+		if done != nil {
+			done()
+		}
+	})
+}
+
+// leftLinkWifi notes that Duo Link's own Wi-Fi was turned off for another network.
+func (a *App) leftLinkWifi() {
+	a.linkWifiUp = false
+	if a.cfg.LinkWifi {
+		a.cfg.LinkWifi = false
+		a.save()
+	}
+}
+
+var errLinkWifiOn = errors.New("Duo Link's Wi-Fi is on")
+
+// openNetworks lists the networks in range; pick one to switch to it.
 func openNetworks(a *App, parent *RowList) {
 	var nets []Network
 	a.background("Looking for networks...", func() error {
+		if hotspotActive() { // the radio is busy being Duo Link's Wi-Fi: it can't look around
+			return errLinkWifiOn
+		}
 		var err error
 		nets, err = scanWifi()
 		return err
 	}, func(err error) {
+		if err == errLinkWifiOn {
+			confirm(a, "DUO LINK WI-FI IS ON", "The Cardputer is making its own Wi-Fi for Duo Link, so it can't join another network. Turn it off?", func() {
+				a.background("Turning off Duo Link's Wi-Fi...", func() error {
+					stopHotspot()
+					time.Sleep(3 * time.Second) // the radio settles before it can scan
+					return nil
+				}, func(error) {
+					a.leftLinkWifi()
+					parent.Refresh(a, parent)
+					openNetworks(a, parent)
+				})
+			})
+			return
+		}
 		if err != nil {
 			a.notify("Scan failed: "+err.Error(), true)
 			return
 		}
-		l := page("NETWORKS", artWifi)
+		l := page("SWITCH NETWORK", artWifi)
 		for _, n := range nets {
 			n := n
 			tag := fmt.Sprintf("%d%%", n.Signal)
@@ -263,19 +324,13 @@ func openNetworks(a *App, parent *RowList) {
 			}
 			l.Rows = append(l.Rows, &Row{Label: n.SSID, Kind: rowAction, Value: tag, Do: func(a *App, r *Row) {
 				join := func(pw string) {
-					a.background("Connecting to "+n.SSID+"...", func() error {
+					joinNetwork(a, n.SSID, func() error {
 						if n.Saved && pw == "" {
-							return connectSaved(n.SSID)
+							return connectSaved(n.Conn)
 						}
 						return connectWifi(n.SSID, pw, false)
-					}, func(err error) {
-						if err != nil {
-							a.notify(err.Error(), true)
-							return
-						}
-						a.status.refresh(true)
-						a.notify("Connected to "+n.SSID, false)
-						a.pop()
+					}, func() {
+						a.pop() // the list (the password box closed itself)
 						parent.Refresh(a, parent)
 					})
 				}
@@ -289,7 +344,10 @@ func openNetworks(a *App, parent *RowList) {
 				}
 			}})
 		}
-		l.Footer = fmt.Sprintf("%d networks", len(nets))
+		l.Footer = fmt.Sprintf("%d networks: pick one to switch to it", len(nets))
+		if len(nets) == 0 {
+			l.Footer = "No networks found"
+		}
 		a.push(l)
 	})
 }
@@ -300,46 +358,72 @@ func joinHidden(a *App, parent *RowList) {
 			return
 		}
 		a.push(newInput("PASSWORD", "Password for "+ssid+" (empty if open)", "", 63, true, func(pw string) {
-			a.background("Connecting to "+ssid+"...", func() error { return connectWifi(ssid, pw, true) },
-				func(err error) {
-					if err != nil {
-						a.notify(err.Error(), true)
-						return
-					}
-					a.status.refresh(true)
-					a.notify("Connected to "+ssid, false)
-					parent.Refresh(a, parent)
-				})
+			joinNetwork(a, ssid, func() error { return connectWifi(ssid, pw, true) },
+				func() { parent.Refresh(a, parent) })
 		}))
 	}))
 }
 
-func openSaved(a *App) {
+// openSaved lists the saved networks: pick one to connect to it (even out of the scan list) or
+// forget it.
+func openSaved(a *App, parent *RowList) {
 	l := page("SAVED NETWORKS", artWifi)
 	l.Refresh = func(a *App, l *RowList) {
 		saved := savedConnections()
+		active := activeConnections()
 		var names []string
 		for n := range saved {
-			names = append(names, n)
+			if n != hotspotConn { // on the Duo Link page
+				names = append(names, n)
+			}
 		}
 		sort.Strings(names)
 		l.Rows = nil
 		for _, n := range names {
 			n := n
-			l.Rows = append(l.Rows, &Row{Label: n, Kind: rowAction, Value: "FORGET", Do: func(a *App, r *Row) {
-				confirm(a, "FORGET NETWORK?", "Forget "+n+" and its password?", func() {
-					if err := forgetWifi(n); err != nil {
-						a.notify(err.Error(), true)
-						return
-					}
-					a.notify("Forgot "+n, false)
-					l.Refresh(a, l)
-				})
+			val := ""
+			if active[n] {
+				val = "CONNECTED"
+			}
+			l.Rows = append(l.Rows, &Row{Label: n, Kind: rowLink, Value: val, Do: func(a *App, r *Row) {
+				savedActions(a, l, parent, n, active[n])
 			}})
+		}
+		l.Footer = "Pick a network to connect to it or forget it"
+		if len(names) == 0 {
+			l.Footer = "No saved networks"
 		}
 	}
 	l.Refresh(a, l)
 	a.push(l)
+}
+
+func savedActions(a *App, list, wifi *RowList, name string, connected bool) {
+	act := page("SAVED NETWORK", artWifi,
+		&Row{Label: "Connect", Kind: rowAction, Off: connected, Do: func(a *App, r *Row) {
+			joinNetwork(a, name, func() error { return connectSaved(name) }, func() {
+				a.pop()
+				list.Refresh(a, list)
+				wifi.Refresh(a, wifi)
+			})
+		}},
+		&Row{Label: "Forget", Kind: rowAction, Do: func(a *App, r *Row) {
+			confirm(a, "FORGET NETWORK?", "Forget "+name+" and its password?", func() {
+				if err := forgetWifi(name); err != nil {
+					a.notify(err.Error(), true)
+					return
+				}
+				a.notify("Forgot "+name, false)
+				a.pop()
+				list.Refresh(a, list)
+				wifi.Refresh(a, wifi)
+			})
+		}})
+	act.Footer = name
+	if connected {
+		act.Footer = name + " (connected)"
+	}
+	a.push(act)
 }
 
 // ---- Ethernet ----

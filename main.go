@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.20.0"
+const version = "0.20.1"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
