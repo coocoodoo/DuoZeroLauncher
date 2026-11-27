@@ -308,6 +308,16 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.20.2)
+
+- The speaker is quiet while a stereo takes the sound (`link_audio.go`): `routeToLink` loads a
+  `module-null-sink` "duolink" with pactl, makes it the default sink, moves every sink-input onto
+  it (again every second, `keepOnLinkSink`, for streams WirePlumber restores to the speaker) and
+  parec records `duolink.monitor`. When the stereo goes, the old default is set back and the
+  module unloaded (streams fall back to the speaker); `restoreLinkAudio` does it on quit and
+  `cleanupLinkSink` at start-up after a crash. No pactl: the old `@DEFAULT_MONITOR@` capture.
+  While routed, the volume keys change the silent sink's volume (the stereo has its own knob).
+
 ## Local changes (0.20.1)
 
 - Switching Wi-Fi networks (`settings.go`): Settings > Wi-Fi > "Switch network" lists what's in

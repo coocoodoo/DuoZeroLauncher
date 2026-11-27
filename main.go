@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.20.1"
+const version = "0.20.2"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -155,6 +155,7 @@ func main() {
 	if !a.sim {
 		go a.doctorAtStart()
 		go a.watchRemotes()
+		go cleanupLinkSink() // a Duo that crashed while a stereo played could leave the speaker quiet
 		if a.cfg.LinkOn {
 			a.startLink()
 		}
@@ -1016,6 +1017,7 @@ func (a *App) shutdown() {
 	if a.link != nil {
 		a.link.shutdown()
 	}
+	restoreLinkAudio()           // the speaker plays again for whatever runs next
 	if a.leave && a.linkWifiUp { // the stock launcher gets the usual Wi-Fi back
 		stopHotspot()
 	}

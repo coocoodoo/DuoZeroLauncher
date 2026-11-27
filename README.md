@@ -120,7 +120,8 @@ After that the stereo rejoins the Cardputer's Wi-Fi and Duo Link connects by its
 both are on. While the Cardputer's own Wi-Fi is up it isn't on any other Wi-Fi; set Duo Link >
 Connect over to SHARED WI-FI to use a network both are already on (the stereo's hotspot, say).
 
-The Cardputer's sound plays on the stereo too (Settings > Duo Link > Sound on the stereo).
+The Cardputer's sound plays on the stereo too (Settings > Duo Link > Sound on the stereo), and
+the Cardputer's own speaker goes quiet while it does; it plays again when the stereo leaves.
 Duo Link works over **Wi-Fi only**: a link over the USB cable kept dropping, so it is refused,
 and USB only charges the Cardputer. The Cardputer's Wi-Fi needs the Doctor's "Wi-Fi settings
 allowed" fix (0.20.0 adds the hotspot permission to it).
