@@ -480,14 +480,14 @@ func (v *FileBrowser) Draw(a *App) {
 	for i := 0; i < fbRows && v.top+i < n; i++ {
 		e := s[v.top+i]
 		y := fbY + i*fbRowH
-		ink, sub := cBlack, cBorder
+		ink, sub := cText, cSub
 		switch {
 		case v.top+i == v.sel:
 			g.rect(x+2, y, w-4, fbRowH, a.theme())
 			ink = inkOn(a.theme())
 			sub = mix(ink, a.theme(), 0.35)
 		case v.marks[e.path]:
-			g.rect(x+2, y, w-4, fbRowH, a.theme().lighter(0.6))
+			g.rect(x+2, y, w-4, fbRowH, mix(curTheme.PaperEven, a.theme(), 0.35))
 		}
 		art := kindArt[e.kind]
 		ic := kindInk[e.kind]
@@ -496,6 +496,9 @@ func (v *FileBrowser) Draw(a *App) {
 		}
 		if v.marks[e.path] { // marked: a tick instead of the kind
 			tick := a.theme().darker(0.45)
+			if curTheme.Dark {
+				tick = a.theme().lighter(0.3)
+			}
 			if v.top+i == v.sel {
 				tick = ink
 			}
@@ -532,13 +535,13 @@ func (v *FileBrowser) Draw(a *App) {
 		g.rect(x+w-3, ty, 2, th, a.theme())
 	}
 	if v.err != "" {
-		g.textC(W/2, fbY+30, v.err, cBorder, 1, false)
+		g.textC(W/2, fbY+30, v.err, cSub, 1, false)
 	} else if n == 0 || (n == 1 && s[0].kind == kUp) {
 		msg := "This folder is empty"
 		if v.filter != "" || v.results != nil {
 			msg = "Nothing matches"
 		}
-		g.textC(W/2, fbY+30, msg, cBorder, 1, false)
+		g.textC(W/2, fbY+30, msg, cSub, 1, false)
 	}
 	// the footer: how many, marked, waiting to paste, free space
 	fy := fbY + fbRows*fbRowH + 3
@@ -556,8 +559,8 @@ func (v *FileBrowser) Draw(a *App) {
 	} else if v.free >= 0 {
 		right = humanSize(v.free) + " free"
 	}
-	g.text(6, fy, left, cBlack, 1, false)
-	g.textR(W-6, fy, right, cBorder, 1, false)
+	g.text(6, fy, left, cText, 1, false)
+	g.textR(W-6, fy, right, cSub, 1, false)
 }
 
 func (e fileEntry) results(v *FileBrowser) bool { return v.results != nil }
@@ -1141,12 +1144,12 @@ func (v *TrashView) Draw(a *App) {
 	x, w := 3, W-6
 	g.dsDetails(x, fbY-2, w, fbRows*fbRowH+4)
 	if n == 0 {
-		g.textC(W/2, fbY+30, "The trash is empty", cBorder, 1, false)
+		g.textC(W/2, fbY+30, "The trash is empty", cSub, 1, false)
 	}
 	for i := 0; i < fbRows && v.top+i < n; i++ {
 		it := v.items[v.top+i]
 		y := fbY + i*fbRowH
-		ink, sub := cBlack, cBorder
+		ink, sub := cText, cSub
 		if v.top+i == v.sel {
 			g.rect(x+2, y, w-4, fbRowH, a.theme())
 			ink = inkOn(a.theme())
@@ -1165,9 +1168,9 @@ func (v *TrashView) Draw(a *App) {
 		g.text(x+19, y+2, fit(musicASCII(it.name), w-34-rw, 1, false), ink, 1, false)
 		g.textR(x+w-6, y+2, fit(from, 130, 1, false), sub, 1, false)
 	}
-	g.text(6, fbY+fbRows*fbRowH+3, fmt.Sprintf("%d item%s", n, map[bool]string{true: "", false: "s"}[n == 1]), cBlack, 1, false)
+	g.text(6, fbY+fbRows*fbRowH+3, fmt.Sprintf("%d item%s", n, map[bool]string{true: "", false: "s"}[n == 1]), cText, 1, false)
 	if n > 0 && v.sel < n {
-		g.textR(W-6, fbY+fbRows*fbRowH+3, "deleted "+shortDate(v.items[v.sel].deleted), cBorder, 1, false)
+		g.textR(W-6, fbY+fbRows*fbRowH+3, "deleted "+shortDate(v.items[v.sel].deleted), cSub, 1, false)
 	}
 }
 
@@ -1382,7 +1385,7 @@ func (v *TextFileView) Draw(a *App) {
 	x, y0, w := 3, 18, W-6
 	g.dsDetails(x, y0, w, tvRows*10+4)
 	if v.err != "" {
-		g.textC(W/2, 60, fit(v.err, W-20, 1, false), cBorder, 1, false)
+		g.textC(W/2, 60, fit(v.err, W-20, 1, false), cSub, 1, false)
 		return
 	}
 	rows := v.rows()
@@ -1394,10 +1397,10 @@ func (v *TextFileView) Draw(a *App) {
 		r := rows[v.top+i]
 		y := y0 + 3 + i*10
 		if v.top+i == v.hit {
-			g.rect(x+2+nw, y-1, w-4-nw, 10, a.theme().lighter(0.5))
+			g.rect(x+2+nw, y-1, w-4-nw, 10, mix(curTheme.PaperEven, a.theme(), 0.4))
 		}
 		if nw > 0 && r.num > 0 {
-			g.textR(x+nw-1, y, fmt.Sprint(r.num), cBorder, 1, false)
+			g.textR(x+nw-1, y, fmt.Sprint(r.num), cSub, 1, false)
 		}
 		text := r.text
 		if !v.wrap && !v.hex {
@@ -1408,7 +1411,7 @@ func (v *TextFileView) Draw(a *App) {
 			}
 		}
 		g.setClip(x+nw+4, y0, w-nw-8, tvRows*10+4)
-		g.text(x+nw+4, y, text, cBlack, 1, false)
+		g.text(x+nw+4, y, text, cText, 1, false)
 		g.noClip()
 	}
 	if len(rows) > tvRows {
@@ -1423,8 +1426,8 @@ func (v *TextFileView) Draw(a *App) {
 	if v.truncated {
 		info += ", first 512 KB"
 	}
-	g.textR(W-6, y0+tvRows*10+5, info, cBorder, 1, false)
+	g.textR(W-6, y0+tvRows*10+5, info, cSub, 1, false)
 	if !v.wrap && !v.hex && v.left > 0 {
-		g.text(6, y0+tvRows*10+5, fmt.Sprintf("column %d", v.left+1), cBorder, 1, false)
+		g.text(6, y0+tvRows*10+5, fmt.Sprintf("column %d", v.left+1), cSub, 1, false)
 	}
 }

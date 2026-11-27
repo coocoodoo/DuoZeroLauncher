@@ -493,7 +493,7 @@ func (v *Editor) Draw(a *App) {
 	x, y0, w := 3, 18, W-6
 	g.dsDetails(x, y0, w, edRows*10+4)
 	if v.err != "" {
-		g.textC(W/2, 60, v.err, cBorder, 1, false)
+		g.textC(W/2, 60, v.err, cSub, 1, false)
 		keycaps(a, "ESC", "Back")
 		return
 	}
@@ -519,9 +519,9 @@ func (v *Editor) Draw(a *App) {
 		r := v.top + i
 		y := y0 + 3 + i*10
 		if r == v.row {
-			g.rect(x+2+numW, y-1, w-4-numW, 10, a.theme().lighter(0.75))
+			g.rect(x+2+numW, y-1, w-4-numW, 10, mix(curTheme.PaperEven, a.theme(), 0.25))
 		}
-		g.textR(x+numW-1, y, fmt.Sprint(r+1), cBorder, 1, false)
+		g.textR(x+numW-1, y, fmt.Sprint(r+1), cSub, 1, false)
 		// expand tabs, then show the columns in view
 		var b strings.Builder
 		for _, c := range v.lines[r] {
@@ -540,18 +540,22 @@ func (v *Editor) Draw(a *App) {
 			s = ""
 		}
 		g.setClip(tx, y0, w-numW-8, edRows*10+4)
-		g.text(tx, y, s, cBlack, 1, false)
+		g.text(tx, y, s, cText, 1, false)
 		g.noClip()
 	}
 	if int(time.Since(v.t0).Seconds()*2)%2 == 0 || time.Since(v.t0) < 600*time.Millisecond {
 		px := tx + (cx-v.left)*6
-		g.rect(px-1, y0+2+(v.row-v.top)*10, 2, 10, a.theme().darker(0.3))
+		cursorC := a.theme().darker(0.3)
+		if curTheme.Dark {
+			cursorC = a.theme().lighter(0.25)
+		}
+		g.rect(px-1, y0+2+(v.row-v.top)*10, 2, 10, cursorC)
 	}
 	status := fmt.Sprintf("Ln %d, Col %d", v.row+1, cx+1)
 	if v.crlf {
 		status += "  CRLF"
 	}
-	g.text(6, y0+edRows*10+6, status, cBorder, 1, false)
+	g.text(6, y0+edRows*10+6, status, cSub, 1, false)
 	if v.modified {
 		g.textR(W-6, y0+edRows*10+6, "not saved", hex(0xc04040), 1, false)
 	}

@@ -38,9 +38,9 @@ func keycaps(a *App, pairs ...string) {
 	for i := 0; i < len(pairs); i += 2 {
 		kw := textW(pairs[i], 1, false) + 8
 		g.dsButton(x, 143, kw, 15, cButton, false)
-		g.text(x+4, 146, pairs[i], cBlack, 1, false)
+		g.text(x+4, 146, pairs[i], cText, 1, false)
 		x += kw + 4
-		x = g.text(x, 146, pairs[i+1], cBlack, 1, false) + 12
+		x = g.text(x, 146, pairs[i+1], cText, 1, false) + 12
 	}
 }
 
@@ -113,8 +113,8 @@ func (v *AppInfo) Draw(a *App) {
 	if a.cfg.pinIndex(e.Key) >= 0 {
 		kind += " / pinned"
 	}
-	g.text(lx+3, y+3, fit(e.Name, w-60-textW(kind, 1, false), 1, false), cBlack, 1, false)
-	g.textR(x+w-5, y+3, kind, cBorder, 1, false)
+	g.text(lx+3, y+3, fit(e.Name, w-60-textW(kind, 1, false), 1, false), cText, 1, false)
+	g.textR(x+w-5, y+3, kind, cSub, 1, false)
 	g.dsInfoText(lx, y+15, w-50, 31)
 	sub := e.Comment
 	if sub == "" {
@@ -143,8 +143,8 @@ func (v *AppInfo) Draw(a *App) {
 	g.dsDetails(x, dy, w, 8+len(rows)*13)
 	for i, r := range rows {
 		ry := dy + 5 + i*13
-		g.text(x+8, ry, r[0], cBorder, 1, false)
-		g.text(x+78, ry, fit(r[1], w-88, 1, false), cBlack, 1, false)
+		g.text(x+8, ry, r[0], cSub, 1, false)
+		g.text(x+78, ry, fit(r[1], w-88, 1, false), cText, 1, false)
 	}
 }
 
@@ -224,7 +224,7 @@ func (v *Input) Draw(a *App) {
 	if int(a.t*2)%2 == 0 {
 		g.rect(cx+1, y+2, 2, 11, cFocus)
 	}
-	g.textR(x+w, y+20, fmt.Sprintf("%d/%d", len(v.text), v.limit), cBorder, 1, false)
+	g.textR(x+w, y+20, fmt.Sprintf("%d/%d", len(v.text), v.limit), cSub, 1, false)
 	keycaps(a, "ENTER", "OK", "ESC", "Cancel", "DEL", "Erase")
 }
 
@@ -335,8 +335,8 @@ func (v *Lock) Draw(a *App) {
 		hh = (hh+11)%12 + 1
 	}
 	t := fmt.Sprintf("%02d:%02d", hh, now.Minute())
-	g.fontText(fontClock30, 120, 28, t, cBlack)
-	g.text(122, 66, now.Format("Monday, January 2"), cBlack, 1, false)
+	g.fontText(fontClock30, 120, 28, t, cText)
+	g.text(122, 66, now.Format("Monday, January 2"), cText, 1, false)
 	msg := a.cfg.Message
 	if a.cfg.isBirthday(now) {
 		msg = "Happy birthday, " + a.cfg.Name + "!"
@@ -403,8 +403,8 @@ func (v *Alarm) Draw(a *App) {
 	g.dsClock(16, 24, 96, time.Now(), a.theme())
 	sw := math.Sin(a.t*18) * 3
 	g.glyph(214+int(sw), 44, artBell, 3, a.theme().darker(0.2))
-	g.fontText(fontClock20, 176, 70, fmtClock(a.cfg, time.Now().Hour(), time.Now().Minute()), cBlack)
-	g.textC(214, 104, "Good morning, "+a.cfg.Name, cBlack, 1, false)
+	g.fontText(fontClock20, 176, 70, fmtClock(a.cfg, time.Now().Hour(), time.Now().Minute()), cText)
+	g.textC(214, 104, "Good morning, "+a.cfg.Name, cText, 1, false)
 }
 
 // ---- calculator ----
@@ -483,7 +483,7 @@ func (v *Calc) Draw(a *App) {
 	if v.err != "" {
 		g.text(x+2, 118, v.err, cBad, 1, false)
 	} else {
-		g.text(x+2, 118, "+ - * / ^ % ( )  sqrt sin cos tan log ln pi", cBorder, 1, false)
+		g.text(x+2, 118, "+ - * / ^ % ( )  sqrt sin cos tan log ln pi", cSub, 1, false)
 	}
 	keycaps(a, "ENTER", "=", "DEL", "Erase", "TAB", "Clear", "ESC", "Back")
 }

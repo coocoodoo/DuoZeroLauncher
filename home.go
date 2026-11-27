@@ -332,15 +332,15 @@ func drawUpper(a *App, calendar bool) {
 	tw := width(f)
 	tx := (paneL - tw) / 2
 	ty := plateY + 3
-	tx = g.fontText(f, tx, ty, t, cBlack)
+	tx = g.fontText(f, tx, ty, t, cText)
 	if ampm != "" {
-		g.text(tx+2, ty+f.capHeight()-9, ampm, cBlack, 1, false)
+		g.text(tx+2, ty+f.capHeight()-9, ampm, cText, 1, false)
 	}
 	date := now.Format("Mon 1/2")
 	if a.cfg.isBirthday(now) {
 		date = "Happy birthday!"
 	}
-	g.textC(paneL/2, plateY+plateH-12, fit(date, clockS-4, 1, false), cBlack, 1, false)
+	g.textC(paneL/2, plateY+plateH-12, fit(date, clockS-4, 1, false), cText, 1, false)
 }
 
 func fmtClock(c *Config, hh, mm int) string {
@@ -356,7 +356,7 @@ func fmtClock(c *Config, hh, mm int) string {
 
 func drawHinge(g *G, x, y, w, h int) {
 	for i := 0; i < w; i++ {
-		g.vline(x+i, y, h, []RGB{cBlack, hex(0x8c8c8c), hex(0x6c6c6c), cBlack}[i%4])
+		g.vline(x+i, y, h, []RGB{curTheme.HingeEdge, curTheme.Hinge1, curTheme.Hinge2, curTheme.HingeEdge}[i%4])
 	}
 }
 
@@ -381,7 +381,7 @@ func (h *Home) drawLower(a *App) {
 	drawStatus(a, W-3, 3, ink)
 	e := h.cur(a)
 	if e == nil {
-		g.textC(x0+paneRW/2, 60, "No apps found", cBlack, 1, false)
+		g.textC(x0+paneRW/2, 60, "No apps found", cText, 1, false)
 		return
 	}
 	h.key = e.Key
@@ -399,7 +399,7 @@ func (h *Home) drawLower(a *App) {
 	if a.cfg.pinIndex(e.Key) >= 0 {
 		g.artIcon(W-8, iy+7, artStar, 11, cFocus)
 	}
-	g.text(lx+3, iy+3, fit(e.Name, W-lx-14, 1, false), cBlack, 1, false)
+	g.text(lx+3, iy+3, fit(e.Name, W-lx-14, 1, false), cText, 1, false)
 	g.dsInfoText(lx, iy+15, W-lx-2, 31)
 	sub := e.Comment
 	if sub == "" {
@@ -461,8 +461,8 @@ func (h *Home) drawLower(a *App) {
 	g.clip = old
 
 	// scroll bar with arrows
-	g.artIcon(x0+8, by+4, artLeft, 10, cBorder)
-	g.artIcon(W-8, by+4, artRight, 10, cBorder)
+	g.artIcon(x0+8, by+4, artLeft, 10, cSub)
+	g.artIcon(W-8, by+4, artRight, 10, cSub)
 	tx0, tw := x0+16, paneRW-32
 	g.rect(tx0, by+2, tw, 5, cGridBG)
 	g.frame(tx0, by+2, tw, 5, cBorder)
@@ -498,7 +498,7 @@ func drawTile(a *App, e *Entry, x, y int, rise, lift float64) {
 func (h *Home) drawLaunch(a *App, e *Entry, from, p float64) {
 	g := a.g
 	g.noClip()
-	g.shade(0, 0, W, H, cWhite, smoothstep(p))
+	g.shade(0, 0, W, H, curTheme.PaperEven, smoothstep(p))
 	up := 1 - math.Pow(1-p, 3) // ease out
 	rise := from + (tileRise+launchRise-from)*up
 	x, y := h.selX, h.selY
@@ -513,7 +513,7 @@ func (h *Home) drawLaunch(a *App, e *Entry, from, p float64) {
 	}
 	if p > 0.4 {
 		t := smoothstep((p - 0.4) / 0.6)
-		g.textC(x+tileW/2, y+tileW+16, fit(e.Name, 180, 1, false), mix(cWhite, cDark, t), 1, false)
+		g.textC(x+tileW/2, y+tileW+16, fit(e.Name, 180, 1, false), mix(curTheme.PaperEven, cText, t), 1, false)
 	}
 }
 

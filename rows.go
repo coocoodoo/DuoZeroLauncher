@@ -205,9 +205,9 @@ func (l *RowList) Draw(a *App) {
 	g := a.g
 	pageTitle(a, l.Title, l.Art)
 	if len(l.Rows) == 0 {
-		g.textC(W/2, 60, "Nothing here yet", cBlack, 1, false)
+		g.textC(W/2, 60, "Nothing here yet", cText, 1, false)
 		if l.Footer != "" {
-			g.textC(W/2, 122, l.Footer, cDark, 1, false)
+			g.textC(W/2, 122, l.Footer, cSub, 1, false)
 		}
 		return
 	}
@@ -231,15 +231,15 @@ func (l *RowList) Draw(a *App) {
 		g.dsButton(W-11, ty, 7, th, a.theme(), false)
 	}
 	if l.Footer != "" {
-		g.textC(W/2, 122, fit(l.Footer, W-16, 1, false), cDark, 1, false)
+		g.textC(W/2, 122, fit(l.Footer, W-16, 1, false), cSub, 1, false)
 	}
 }
 
 func drawRow(a *App, x, y, w int, r *Row, sel bool) {
 	g := a.g
-	ink := cBlack
+	ink := cText
 	if r.Off {
-		ink = hex(0x8a8a8a)
+		ink = cDisabled
 	}
 	base := cButton
 	if sel {
@@ -261,7 +261,7 @@ func drawRow(a *App, x, y, w int, r *Row, sel bool) {
 	}
 	g.text(x+7, y+3, fit(r.Label, w/2-4, 1, false), ink, 1, false)
 	rx := x + w - 7
-	sub := cBorder
+	sub := cSub
 	if sel && !(r.Kind == rowInfo && r.Do == nil) {
 		sub = ink
 	}
@@ -315,9 +315,12 @@ func drawToggle(g *G, x, y int, on bool, theme RGB, off bool) {
 		onBase = theme
 	} else {
 		offBase = hex(0x606060)
+		if curTheme.Dark {
+			offBase = cButton.darker(0.35)
+		}
 	}
 	if off {
-		onBase, offBase = mix(onBase, cWhite, 0.5), mix(offBase, cWhite, 0.5)
+		onBase, offBase = mix(onBase, curTheme.PaperEven, 0.5), mix(offBase, curTheme.PaperEven, 0.5)
 	}
 	g.dsSquare(x, y, 13, 11, offBase, !on)
 	g.dsSquare(x+13, y, 13, 11, onBase, on)

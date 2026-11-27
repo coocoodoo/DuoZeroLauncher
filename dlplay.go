@@ -616,15 +616,15 @@ func (v *DLSend) Draw(a *App) {
 	}
 	pageTitle(a, title, artWifi)
 	g.dsInfo(0, 20, W, 47, cButton)
-	g.text(8, 23, fit(v.name, 200, 1, false), cBlack, 1, false)
-	g.textR(W-8, 23, humanBytes(v.s.offer.Size), cBorder, 1, false)
+	g.text(8, 23, fit(v.name, 200, 1, false), cText, 1, false)
+	g.textR(W-8, 23, humanBytes(v.s.offer.Size), cSub, 1, false)
 	g.dsInfoText(4, 35, W-8, 31)
 	g.text(10, 39, how[0], cWhite, 1, false)
 	g.text(10, 51, how[1], cWhite, 1, false)
 	code := v.s.code
 	cw := fontClock30.width(code)
 	g.dsPlate((W-cw)/2-8, 72, cw+16, 38)
-	g.fontText(fontClock30, (W-cw)/2, 76, code, cBlack)
+	g.fontText(fontClock30, (W-cw)/2, 76, code, cText)
 	msg := "Waiting...  " + orDash(primaryIP())
 	if n := len(v.sentTo); n > 0 {
 		msg = fmt.Sprintf("Sent to %s", v.sentTo[n-1])
@@ -634,7 +634,7 @@ func (v *DLSend) Draw(a *App) {
 	} else {
 		g.dsLoading(W-26, 88, a.t)
 	}
-	g.textC(W/2, 116, msg, cBorder, 1, false)
+	g.textC(W/2, 116, msg, cSub, 1, false)
 }
 
 // stopReceive ends the current receive list's network listener (there is at most one).

@@ -370,7 +370,7 @@ func (v *MusicNow) Draw(a *App) {
 	}
 	win := W - 8 - tx
 	if tw := textW(title, 1, false); tw <= win {
-		g.text(tx, y+3, title, cBlack, 1, false)
+		g.text(tx, y+3, title, cText, 1, false)
 	} else { // a long title scrolls while it plays
 		el := time.Since(st.changed).Seconds()
 		span := float64(tw + 36)
@@ -380,9 +380,9 @@ func (v *MusicNow) Draw(a *App) {
 			off = int((t - 1.6) * 22)
 		}
 		g.setClip(tx, y+2, win, 12)
-		g.text(tx-off, y+3, title, cBlack, 1, false)
+		g.text(tx-off, y+3, title, cText, 1, false)
 		if off > 0 {
-			g.text(tx-off+tw+36, y+3, title, cBlack, 1, false)
+			g.text(tx-off+tw+36, y+3, title, cText, 1, false)
 		}
 		g.noClip()
 	}
@@ -394,14 +394,18 @@ func (v *MusicNow) Draw(a *App) {
 	if who == "" {
 		who = "Unknown artist"
 	}
-	g.text(tx, y+14, fit(who, win-textW(n, 1, false)-8, 1, false), cBorder, 1, false)
-	g.textR(W-7, y+14, n, a.theme().darker(0.2), 1, false)
+	g.text(tx, y+14, fit(who, win-textW(n, 1, false)-8, 1, false), cSub, 1, false)
+	metaAccent := a.theme().darker(0.2)
+	if curTheme.Dark {
+		metaAccent = a.theme().lighter(0.2)
+	}
+	g.textR(W-7, y+14, n, metaAccent, 1, false)
 
 	// time and progress
 	py := y + 25
 	pos, dur := st.pos, st.meta.dur
-	g.text(tx, py, songTime(pos), cBlack, 1, false)
-	g.textR(W-7, py, songTime(dur), cBorder, 1, false)
+	g.text(tx, py, songTime(pos), cText, 1, false)
+	g.textR(W-7, py, songTime(dur), cSub, 1, false)
 	bx := tx + 44
 	bw := W - 7 - textW("0:00:00", 1, false) - 6 - bx
 	cells := bw / 3
@@ -411,14 +415,14 @@ func (v *MusicNow) Draw(a *App) {
 	}
 	on := int(frac*float64(cells) + 0.5)
 	for i := 0; i < cells; i++ {
-		c := cGridBG.darker(0.15)
+		c := cGridLine
 		if i < on {
 			c = mix(a.theme(), a.theme().darker(0.35), float64(i)/float64(max(cells, 1)))
 		}
 		g.rect(bx+i*3, py+3, 2, 5, c)
 	}
 	if dur > 0.1 {
-		g.rect(bx+min(on, cells-1)*3, py+1, 2, 9, cBlack)
+		g.rect(bx+min(on, cells-1)*3, py+1, 2, 9, cText)
 	}
 	if st.paused {
 		g.textC(W/2, musVisY+fxVH-4, "PAUSED", hex(0xffc054), 1, false)
@@ -463,13 +467,13 @@ func drawMusicList(a *App, title string, labels []string, dirs []bool, sel, play
 	}
 	*top = max(0, min(*top, n-musRows))
 	if n == 0 {
-		g.text(x+10, y+6, empty, cBorder, 1, false)
+		g.text(x+10, y+6, empty, cSub, 1, false)
 	}
 	st := a.musicPlayer().state()
 	for i := 0; i < musRows && *top+i < n; i++ {
 		idx := *top + i
 		ry := y + 3 + i*12
-		ink := cBlack
+		ink := cText
 		if idx == sel {
 			g.rect(x+3, ry, w-10, 12, a.theme())
 			ink = inkOn(a.theme())
@@ -486,7 +490,7 @@ func drawMusicList(a *App, title string, labels []string, dirs []bool, sel, play
 					g.rect(lx-3+b*3, ry+10-h, 2, h, ink)
 				}
 			}
-			g.text(lx+8, ry+1, fmt.Sprintf("%02d", idx+1), mix(ink, cBorder, 0.5), 1, false)
+			g.text(lx+8, ry+1, fmt.Sprintf("%02d", idx+1), mix(ink, cSub, 0.5), 1, false)
 			tx = lx + 26
 		} else if dirs[idx] {
 			g.glyph(lx+5, ry+6, artFolder, 1, mix(ink, hex(0xc08000), 0.6))

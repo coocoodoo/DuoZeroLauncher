@@ -151,10 +151,10 @@ func (v *Search) Draw(a *App) {
 	r := v.results(a)
 	switch {
 	case len(v.q) == 0:
-		g.textC(W/2, 60, "Type part of an app's name", cBlack, 1, false)
-		g.textC(W/2, 74, "Tab: next match   Enter: open", cBorder, 1, false)
+		g.textC(W/2, 60, "Type part of an app's name", cText, 1, false)
+		g.textC(W/2, 74, "Tab: next match   Enter: open", cSub, 1, false)
 	case len(r) == 0:
-		g.textC(W/2, 66, "No app matches \""+fit(q, 160, 1, false)+"\"", cBlack, 1, false)
+		g.textC(W/2, 66, "No app matches \""+fit(q, 160, 1, false)+"\"", cText, 1, false)
 	default:
 		top := 0
 		if v.sel >= 5 {
@@ -171,17 +171,14 @@ func (v *Search) Draw(a *App) {
 			if ic := r[i].Icon(12); ic != nil {
 				g.icon(x+3, y+2, ic, 1)
 			}
-			ink := cBlack
-			if sel {
-				ink = inkOn(base)
-			}
+			ink := neutralInk(base, sel)
 			g.text(x+20, y+3, fit(r[i].Name, w-90, 1, false), ink, 1, false)
 			if sel {
 				g.textR(x+w-6, y+3, "Enter", ink, 1, false)
 			}
 		}
 		if len(r) > 5 {
-			g.textR(W-8, 131-10, itoa(len(r))+" matches", cBorder, 1, false)
+			g.textR(W-8, 131-10, itoa(len(r))+" matches", cSub, 1, false)
 		}
 	}
 	keycaps(a, "ENTER", "Open", "TAB", "Next", "ESC", "Close")

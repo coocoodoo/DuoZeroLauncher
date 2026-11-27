@@ -172,6 +172,7 @@ func testApp(t *testing.T) *App {
 	scr := &cp0.Screen{Px: make([]uint16, W*H)}
 	a := &App{cfg: defaultConfig(), snd: &Sound{cache: map[string][]int16{}}, scr: scr, keys: newSimKeys(""),
 		status: &Status{Battery: -1}, work: make(chan func(), 16), start: time.Now(), progress: -1}
+	applyUITheme(a.cfg.Theme)
 	a.g = newG(scr)
 	a.stack = []View{&Home{last: time.Now()}}
 	a.simShots = os.Getenv("DSL_DOC_SHOTS") // set it to look at the pages

@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.20.2"
+const version = "0.21.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -126,6 +126,7 @@ func main() {
 	}
 	a := &App{cfg: loadConfig(), snd: newSound(), status: &Status{Battery: -1}, start: time.Now(),
 		work: make(chan func(), 16), pressSlot: -1, progress: -1}
+	applyUITheme(a.cfg.Theme)
 	a.scr = cp0.Open()
 	a.g = newG(a.scr)
 	if os.Getenv("DSL_SIM") == "" {
@@ -692,9 +693,9 @@ func (a *App) drawBar(items []BarItem) {
 		}
 		x := barX[i]
 		pressed := i == a.pressSlot && time.Now().Before(a.pressTill)
-		ink := cBlack
+		ink := cText
 		if it.Off {
-			ink = hex(0x8a8a8a)
+			ink = cDisabled
 		}
 		g.textSmallC(x, y0+4, titleCase(it.Label), ink)
 		bx, by := x-15, 144
@@ -704,18 +705,18 @@ func (a *App) drawBar(items []BarItem) {
 		}
 		g.dsSquare(bx, by, 30, 22, base, pressed)
 		if t := barIcon(it.Art); t != nil {
-			ink := cBlack
+			ink := cText
 			switch {
 			case it.Off:
-				ink = hex(0x9a9a9a)
+				ink = cDisabled
 			case pressed:
 				ink = inkOn(base)
 			}
 			g.texInk(t, x-10, by+1+btoi(pressed), ink, 1)
 		} else if it.Art != nil {
-			c := hex(0x303030)
+			c := cText
 			if it.Off {
-				c = hex(0x9a9a9a)
+				c = cDisabled
 			}
 			if pressed {
 				c = inkOn(base)
@@ -946,7 +947,7 @@ func (a *App) drawLaunching(e *Entry) {
 	}
 	g := a.g
 	for i := 0; i < 6; i++ {
-		g.shade(0, 0, W, H, cWhite, 0.25)
+		g.shade(0, 0, W, H, curTheme.PaperEven, 0.25)
 		a.scr.Show()
 		if !a.sim {
 			time.Sleep(25 * time.Millisecond)
@@ -959,7 +960,7 @@ func (a *App) drawLaunching(e *Entry) {
 	if ic := e.Icon(38); ic != nil {
 		g.icon(x+4, y+4, ic, 1)
 	}
-	g.text(x+51, y+3, fit(e.Name, w-60, 1, false), cBlack, 1, false)
+	g.text(x+51, y+3, fit(e.Name, w-60, 1, false), cText, 1, false)
 	g.dsInfoText(x+48, y+15, w-50, 31)
 	g.text(x+54, y+25, "Starting...", cWhite, 1, false)
 	g.dsLoading(x+w-20, y+24, a.t)

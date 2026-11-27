@@ -107,7 +107,7 @@ func (s *Settings) Draw(a *App) {
 			base = a.theme()
 		}
 		g.dsButton(x, y+bounce, 48, 50, base, false)
-		ink := inkOn(base)
+		ink := neutralInk(base, focus)
 		if ic := tileIcon(t.art); ic != nil {
 			g.texInk(ic, x+12, y+8+bounce, ink, 1)
 		} else {
@@ -648,6 +648,8 @@ func launcherPage(a *App) View {
 				}},
 			{Label: "Show or hide apps", Kind: rowLink, Value: fmt.Sprintf("%d hidden", hidden),
 				Do: func(a *App, r *Row) { a.push(appsVisibility(a, l)) }},
+			{Label: "Theme", Kind: rowLink, Value: uiThemeByIndex(a.cfg.Theme).Name,
+				Do: func(a *App, r *Row) { a.push(&ThemePick{sel: a.cfg.Theme, back: func() { l.Refresh(a, l) }}) }},
 			{Label: "Duo Link (car stereo)", Kind: rowLink, Value: linkSummary(a), Do: func(a *App, r *Row) { a.push(linkPage(a)) }},
 			{Label: "Uninstall apps", Kind: rowLink, Do: func(a *App, r *Row) { a.push(uninstallPage(a, l)) }},
 			{Label: "Removed apps", Kind: rowLink, Value: removedCount(),
@@ -899,7 +901,7 @@ func (c *ColorPick) Draw(a *App) {
 	g.dsBar(px, py, pw, barH, t)
 	g.text(px+5, py+4, a.cfg.Name, inkOn(t), 1, false)
 	g.dsDetails(px, py+barH, pw, 86)
-	g.textC(px+pw/2, py+24, themes[c.sel].Name, cBlack, 2, false)
+	g.textC(px+pw/2, py+24, themes[c.sel].Name, cText, 2, false)
 	g.dsButton(px+20, py+50, pw-40, 18, t, false)
 	g.textC(px+pw/2, py+54, "Like this", inkOn(t), 1, false)
 	drawToggle(g, px+pw/2-13, py+76, true, t, false)

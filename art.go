@@ -427,6 +427,8 @@ var barIcons = map[*string]string{
 	&artPhoto[0]: "photo", &artZoom[0]: "zoom", &artRotate[0]: "rotate", &artUp[0]: "up",
 	// Files
 	&artPlaces[0]: "places",
+	// Themes
+	&artThemes[0]: "themes",
 }
 
 func barIcon(art []string) *Tex {
@@ -447,7 +449,7 @@ var tileIcons = map[*string]string{
 	&artPicto[0]: "pictochat",
 	// the second page
 	&artLinkTile[0]: "link", &artMusic[0]: "music", &artPhoto[0]: "photos", &artFolder[0]: "files",
-	&artSharing[0]: "sharing", &artDoctor[0]: "doctor", &artRefresh[0]: "updates",
+	&artSharing[0]: "sharing", &artDoctor[0]: "doctor", &artRefresh[0]: "updates", &artThemes[0]: "themes",
 }
 
 func tileIcon(art []string) *Tex {

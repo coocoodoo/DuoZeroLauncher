@@ -14,7 +14,8 @@ import (
 
 type Config struct {
 	Name       string
-	Color      int // index into themes
+	Color      int // index into themes (favourite colour)
+	Theme      int // index into uiThemes (launcher surface theme)
 	BirthMonth int
 	BirthDay   int
 	Message    string
@@ -82,6 +83,12 @@ func loadConfig() *Config {
 		case "color":
 			if n >= 0 && n < len(themes) {
 				c.Color = n
+			}
+		case "theme":
+			if idx := uiThemeIndex(v); idx > 0 || v == uiThemes[0].ID {
+				c.Theme = idx
+			} else if n >= 0 && n < len(uiThemes) {
+				c.Theme = n
 			}
 		case "birth_month":
 			c.BirthMonth = n
@@ -168,7 +175,7 @@ func (c *Config) Save() error {
 	}
 	sort.Strings(used)
 	lines := []string{
-		"name=" + c.Name, "color=" + strconv.Itoa(c.Color),
+		"name=" + c.Name, "color=" + strconv.Itoa(c.Color), "theme=" + uiThemeByIndex(c.Theme).ID,
 		"birth_month=" + strconv.Itoa(c.BirthMonth), "birth_day=" + strconv.Itoa(c.BirthDay),
 		"message=" + c.Message, "clock24=" + bit(c.Clock24), "sounds=" + bit(c.Sounds),
 		"sound_vol=" + strconv.Itoa(c.SoundVol), "jingle=" + bit(c.Jingle),

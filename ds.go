@@ -168,6 +168,47 @@ func sliceY(d, n, src, s int) (int, int, float64) {
 	return y0, y1, fy - float64(y0)
 }
 
+var shadeCache = map[[3]any]*Tex{}
+
+// shadeTex shifts a smoothed bevel texture's bright key down toward mid-grey (128) for mid and
+// dark themes so dark neutral controls keep their true colour with the same glossy bevel. At
+// dark == 0 (Classic) it returns smoothTex unchanged.
+func shadeTex(t *Tex, s int, dark float64) *Tex {
+	st := smoothTex(t, s)
+	if dark <= 0 {
+		return st
+	}
+	q := int(dark*20 + 0.5)
+	key := [3]any{t, s, q}
+	if cached, ok := shadeCache[key]; ok {
+		return cached
+	}
+	sum, n := 0, 0
+	for i := 0; i < len(st.Pix); i += 4 {
+		if st.Pix[i+3] > 0 {
+			sum += (int(st.Pix[i]) + int(st.Pix[i+1]) + int(st.Pix[i+2])) / 3
+			n++
+		}
+	}
+	avg := 128
+	if n > 0 {
+		avg = sum / n
+	}
+	shift := int(float64(max(avg-128, 0))*dark + 0.5)
+	out := &Tex{W: st.W, H: st.H, Pix: append([]uint8(nil), st.Pix...)}
+	for i := 0; i < len(out.Pix); i += 4 {
+		for k := 0; k < 3; k++ {
+			v := int(out.Pix[i+k]) - shift
+			if v < 0 {
+				v = 0
+			}
+			out.Pix[i+k] = uint8(v)
+		}
+	}
+	shadeCache[key] = out
+	return out
+}
+
 // draw9 draws t into the rectangle with s-pixel fixed edges. With base, the texture is blended
 // over that colour in hard-light mode (as background-blend-mode: hard-light does); hollow skips
 // the centre (a CSS border-image without fill). Shaded (base) textures are drawn as smooth,
@@ -175,7 +216,7 @@ func sliceY(d, n, src, s int) (int, int, float64) {
 func (g *G) draw9(t *Tex, x, y, w, h, s int, base *RGB, tileX, hollow bool) {
 	src := t
 	if base != nil {
-		src = smoothTex(t, s)
+		src = shadeTex(t, s, curTheme.DarkChrome)
 	}
 	for dy := 0; dy < h; dy++ {
 		y0, y1, f := mapSlice(dy, h, t.H, s, false), 0, 0.0
@@ -263,30 +304,30 @@ func (g *G) dsSquare(x, y, w, h int, base RGB, pressed bool) {
 // dsBar is the thin title bar (.bar) over a base colour, with its dark bottom line.
 func (g *G) dsBar(x, y, w, h int, base RGB) {
 	g.draw9(tex("top_bar.png"), x, y, w, h-1, 1, &base, true, false)
-	g.hline(x, y+h-1, w, cBlack)
+	g.hline(x, y+h-1, w, curTheme.HingeEdge)
 }
 
 // dsBarLg is the large bar (.bar-lg-reverse when top is true: the line is on top).
 func (g *G) dsBarLg(x, y, w, h int, base RGB, lineOnTop bool) {
 	if lineOnTop {
-		g.hline(x, y, w, cBlack)
+		g.hline(x, y, w, curTheme.HingeEdge)
 		g.draw9(tex("bottom_bar_bottom.png"), x, y+1, w, h-1, 1, &base, true, false)
 	} else {
 		g.draw9(tex("bottom_bar_top.png"), x, y, w, h-1, 1, &base, true, false)
-		g.hline(x, y+h-1, w, cBlack)
+		g.hline(x, y+h-1, w, curTheme.HingeEdge)
 	}
 }
 
-// dsGrid is the DS grid paper: alternating white and light grey rows, a line every 16 px.
+// dsGrid is the DS grid paper: alternating two-tone rows, a line every 16 px.
 // Lines are on absolute screen positions so panes line up.
 func (g *G) dsGrid(x, y, w, h int) {
-	white, grey, line := cWhite.c565(), cGridBG.c565(), cGridLine.c565()
+	even, odd, line := curTheme.PaperEven.c565(), curTheme.PaperOdd.c565(), curTheme.GridLine.c565()
 	r := image.Rect(x, y, x+w, y+h).Intersect(g.clip)
 	for yy := r.Min.Y; yy < r.Max.Y; yy++ {
 		row := g.s.Px[yy*W:]
-		c := white
+		c := even
 		if yy%2 == 1 {
-			c = grey
+			c = odd
 		}
 		for xx := r.Min.X; xx < r.Max.X; xx++ {
 			if xx%16 == 15 || yy%16 == 15 {
@@ -298,17 +339,17 @@ func (g *G) dsGrid(x, y, w, h int) {
 	}
 }
 
-// dsDetails is the striped light box used for details text (white/grey rows, grey border).
+// dsDetails is the striped content box used for details text.
 func (g *G) dsDetails(x, y, w, h int) {
 	for i := 0; i < h; i++ {
-		c := cWhite
+		c := curTheme.PaperEven
 		if (y+i)%2 == 1 {
-			c = cGridBG
+			c = curTheme.PaperOdd
 		}
 		g.hline(x, y+i, w, c)
 	}
 	g.frame(x, y, w, h, cBorder)
-	g.frame(x+1, y+1, w-2, h-2, cWhite)
+	g.frame(x+1, y+1, w-2, h-2, curTheme.BoxInner)
 	g.frame(x+2, y+2, w-4, h-4, cDetailsLine)
 }
 
@@ -444,29 +485,33 @@ func barBase(theme RGB) RGB { return theme }
 
 // ---- DS clock ----
 
-// dsClock draws the square analog clock: grid face, grey 12/3/6/9 numerals in the clock font,
-// dots for the other hours, grey hands and a coloured second hand.
+// dsClock draws the square analog clock: grid face, 12/3/6/9 numerals in the clock font,
+// dots for the other hours, hands and a coloured second hand.
 func (g *G) dsClock(x, y, s int, now time.Time, accent RGB) {
-	_ = accent // the DS second hand is always steel blue
-	// 2-px black frame around a striped paper face with a 6 x 6 grid, as on the DS
-	g.frame(x, y, s, s, cBlack)
-	g.frame(x+1, y+1, s-2, s-2, cBlack)
+	_ = accent // the DS second hand uses the theme's clock second-hand colour
+	// 2-px frame around a striped paper face with a 6 x 6 grid, as on the DS
+	frame := curTheme.HingeEdge
+	if curTheme.Dark {
+		frame = curTheme.Border
+	}
+	g.frame(x, y, s, s, frame)
+	g.frame(x+1, y+1, s-2, s-2, frame)
 	old := g.clip
 	g.setClip(x+2, y+2, s-4, s-4)
 	for i := 2; i < s-2; i++ {
-		c := cWhite
+		c := curTheme.ClockBg1
 		if i%2 == 0 {
-			c = hex(0xeeeeee)
+			c = curTheme.ClockBg2
 		}
 		g.hline(x+2, y+i, s-4, c)
 	}
 	for i := 1; i < 6; i++ {
-		g.vline(x+i*s/6, y+2, s-4, hex(0xd6d6d6))
-		g.hline(x+2, y+i*s/6, s-4, hex(0xd6d6d6))
+		g.vline(x+i*s/6, y+2, s-4, curTheme.ClockGrid)
+		g.hline(x+2, y+i*s/6, s-4, curTheme.ClockGrid)
 	}
 	g.clip = old
 	cx, cy := float64(x)+float64(s)/2, float64(y)+float64(s)/2
-	numeral := hex(0xaaaaaa)
+	numeral := curTheme.ClockNum
 	f := fontClock10
 	if s >= 72 {
 		f = fontClock15
@@ -486,7 +531,7 @@ func (g *G) dsClock(x, y, s int, now time.Time, accent RGB) {
 			g.fontText(f, int(px)-tw/2, int(py)-nh/2, label, numeral)
 		default:
 			d := 2 + btoi(s >= 72)
-			g.rect(int(px)-d/2, int(py)-d/2, d, d, hex(0x707070))
+			g.rect(int(px)-d/2, int(py)-d/2, d, d, curTheme.ClockDot)
 		}
 	}
 	sec := float64(now.Second())
@@ -496,16 +541,16 @@ func (g *G) dsClock(x, y, s int, now time.Time, accent RGB) {
 		ang := frac * 2 * math.Pi
 		g.aaline(cx, cy, cx+math.Sin(ang)*length, cy-math.Cos(ang)*length, width, c)
 	}
-	hand(hr/12, r*0.55, 2.2, hex(0x666666))
-	hand(mins/60, r*0.85, 1.8, hex(0x666666))
-	hand(sec/60, r*0.85, 1.4, hex(0x55799a))
-	g.rect(int(cx)-2, int(cy)-2, 5, 5, hex(0x3a3a3a))
+	hand(hr/12, r*0.55, 2.2, curTheme.ClockHand)
+	hand(mins/60, r*0.85, 1.8, curTheme.ClockHand)
+	hand(sec/60, r*0.85, 1.4, curTheme.ClockSec)
+	g.rect(int(cx)-2, int(cy)-2, 5, 5, curTheme.ClockPin)
 }
 
-// dsPlate is the white panel with a grey outline that labels a clock or calendar.
+// dsPlate is the panel with an outline that labels a clock or calendar.
 func (g *G) dsPlate(x, y, w, h int) {
 	g.rect(x, y, w, h, cPlateLine)
-	g.rect(x+1, y+1, w-2, h-2, cWhite)
+	g.rect(x+1, y+1, w-2, h-2, curTheme.PlateBG)
 }
 
 // todayFrame is the DS calendar's mark for today: a dithered outline t pixels thick whose
@@ -554,9 +599,9 @@ func (g *G) dsCalendar(x, y, w, h int, now time.Time) {
 	gx := x + (w-gw-2)/2 + 1 // inside the 1-px dark frame
 	rowH := min((y+h-(y+plateH)-headH-2)/rows, 16)
 
-	// month plate: white, grey outline, same width as the grid and touching it
+	// month plate: same width as the grid and touching it
 	g.dsPlate(gx-1, y, gw+2, plateH+1)
-	g.spacedText(gx+gw/2, y+4, now.Format("1/2006"), cBlack, 2)
+	g.spacedText(gx+gw/2, y+4, now.Format("1/2006"), cText, 2)
 
 	top := y + plateH + 1 // first row of the header, under the frame line
 	g.rect(gx-1, top-1, gw+2, headH+rows*rowH+2, cCalFrame)
@@ -575,7 +620,7 @@ func (g *G) dsCalendar(x, y, w, h int, now time.Time) {
 	g.rect(gx, gy+1, gw-0, rows*rowH, cCalBorder)
 	for r := 0; r < rows; r++ {
 		for c := 0; c < 7; c++ {
-			bg, ink := cCalDay, cBlack
+			bg, ink := cCalDay, curTheme.CalText
 			if c == 0 {
 				bg, ink = cCalSun, cCalTextSun
 			} else if c == 6 {

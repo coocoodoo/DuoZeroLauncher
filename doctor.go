@@ -1072,7 +1072,7 @@ func (v *DocText) Draw(a *App) {
 		if i == v.top && lines[i].s == "" {
 			continue // no gap at the top
 		}
-		g.text(x+6, ly, lines[i].s, cBlack, 1, lines[i].bold)
+		g.text(x+6, ly, lines[i].s, cText, 1, lines[i].bold)
 		ly += lines[i].height()
 	}
 	if last := v.maxTop(); last > 0 { // a scroll bar

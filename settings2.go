@@ -66,6 +66,7 @@ func settingsPage2() []tile {
 		{"Sharing", artSharing, sharingPage},
 		{"Doctor", artDoctor, func(a *App) View { return doctorPage(a, nil) }},
 		{"Updates", artRefresh, updatesPage},
+		{"Themes", artThemes, themesPage},
 	}
 }
 

@@ -308,6 +308,19 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.21.0)
+
+- Settings > **Themes** (`themes.go`, page 2 tile `icons/settings/themes.svg` /
+  `assets/tiles/themes.png` and Settings > Launcher > Theme): 10 surface themes (`uiThemes`:
+  Classic, Dark, Midnight, OLED, Warm Paper, Game Boy, Sakura, Ocean, Terminal, Amber CRT),
+  persisted as `theme=<id>` in `Config.Theme`. `applyUITheme` updates the palette vars (`cPaper`,
+  `cGridBG`, `cGridLine`, `cButton`, `cBorder`, `cFocus`, `cText`, `cSub`, `cDisabled`, clock and
+  calendar colours) and `shadeTex` (`ds.go`) shifts bright-key bevel textures toward mid-grey for
+  mid/dark themes (`DarkChrome` 0..1; 0 on Classic is pixel-identical). Every theme keeps the
+  exact same Favourite colour (`a.theme()`) behaviour across bars, selections, toggles, sliders
+  and progress bars. `ThemePick` previews live, restores on Back, saves on Choose, and key 5
+  opens `ColorPick` directly. Tests: `themes_test.go`.
+
 ## Local changes (0.20.2)
 
 - The speaker is quiet while a stereo takes the sound (`link_audio.go`): `routeToLink` loads a

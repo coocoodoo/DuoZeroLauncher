@@ -295,10 +295,7 @@ func (v *PhotoGrid) Draw(a *App) {
 				if it.name == ".." {
 					art, label = artUp, "Up"
 				}
-				ink := cBlack
-				if sel {
-					ink = inkOn(base)
-				}
+				ink := neutralInk(base, sel)
 				g.artIcon(x+thumbW/2, y+15, art, 20, ink)
 				g.textC(x+thumbW/2, y+thumbH-13, fit(label, thumbW-6, 1, false), ink, 1, false)
 			default:
@@ -326,7 +323,7 @@ func (v *PhotoGrid) Draw(a *App) {
 	// the caption: what's selected, and where in the folder
 	cy := gridY + gridRows*(thumbH+gridGap) + 1
 	if n == 0 {
-		g.textC(W/2, 60, "No photos or folders here", cBorder, 1, false)
+		g.textC(W/2, 60, "No photos or folders here", cSub, 1, false)
 		return
 	}
 	pics, at := v.pictures()
@@ -336,8 +333,8 @@ func (v *PhotoGrid) Draw(a *App) {
 		right = fmt.Sprintf("%d/%d", at+1, len(pics))
 	}
 	rw := textW(right, 1, false)
-	g.text(5, cy, fit(musicASCII(it.name), W-rw-18, 1, false), cBlack, 1, false)
-	g.textR(W-5, cy, right, cBorder, 1, false)
+	g.text(5, cy, fit(musicASCII(it.name), W-rw-18, 1, false), cText, 1, false)
+	g.textR(W-5, cy, right, cSub, 1, false)
 }
 
 // ---- the viewer ----

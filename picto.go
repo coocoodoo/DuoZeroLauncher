@@ -1054,7 +1054,7 @@ func (v *PictoView) drawSide(a *App) {
 func (v *PictoView) drawRooms(a *App) {
 	g := a.g
 	pageTitle(a, "PictoChat", artPicto)
-	g.textC(W/2, barH+4, "Choose a Chat Room", cBlack, 1, false)
+	g.textC(W/2, barH+4, "Choose a Chat Room", cText, 1, false)
 	for i := 0; i < 4; i++ {
 		y := barH + 17 + i*21
 		x, w := 44, W-88
@@ -1066,8 +1066,12 @@ func (v *PictoView) drawRooms(a *App) {
 		g.dsButton(x, y, w, 19, base, false)
 		g.dsSquare(x+3, y+2, 15, 15, pcRoomColor[i], false)
 		g.textC(x+10, y+5, string(rune('A'+i)), cWhite, 1, false)
-		g.text(x+26, y+5, "Chat Room "+string(rune('A'+i)), cBlack, 1, false)
-		g.textR(x+w-8, y+5, fmt.Sprintf("%d/%d", v.counts[i], pcRoomMax), cDark, 1, false)
+		ink, cntInk := neutralInk(base, sel), cSub
+		if sel {
+			cntInk = ink
+		}
+		g.text(x+26, y+5, "Chat Room "+string(rune('A'+i)), ink, 1, false)
+		g.textR(x+w-8, y+5, fmt.Sprintf("%d/%d", v.counts[i], pcRoomMax), cntInk, 1, false)
 	}
 	info := v.label
 	if v.sess.code != "" {

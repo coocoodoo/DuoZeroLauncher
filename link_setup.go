@@ -155,8 +155,14 @@ func (v *LinkSetup) Draw(a *App) {
 	x, y, w, h := 6, docTextTop, W-12, docTextHeight
 	g.dsDetails(x, y, w, h)
 	accent := a.theme().darker(0.25)
+	if curTheme.Dark {
+		accent = a.theme().lighter(0.25)
+	}
 	good := hex(0x1f8a3a)
-	grey := hex(0x707070)
+	if curTheme.Dark {
+		good = hex(0x45d66b)
+	}
+	grey := cSub
 	tx := x + 8
 
 	// which step, with a dot for each
@@ -164,7 +170,7 @@ func (v *LinkSetup) Draw(a *App) {
 		setupDone: "ALL SET"}[v.step]
 	g.text(tx, y+5, head, accent, 1, true)
 	for i := 0; i < 3; i++ {
-		c := cGridBG
+		c := cGridLine
 		if i < v.step {
 			c = good
 		} else if i == v.step {
@@ -182,35 +188,35 @@ func (v *LinkSetup) Draw(a *App) {
 		}
 	}
 	big := func(cy int, label, val string) {
-		g.text(tx, cy+6, label, cBlack, 1, false)
-		g.text(tx+76, cy, fit(val, w-92, 2, false), cBlack, 2, false)
+		g.text(tx, cy+6, label, cText, 1, false)
+		g.text(tx+76, cy, fit(val, w-92, 2, false), cText, 2, false)
 	}
 
 	switch v.step {
 	case setupJoin:
-		g.text(tx, y+21, "On the stereo: Settings > Wi-Fi, join", cBlack, 1, false)
+		g.text(tx, y+21, "On the stereo: Settings > Wi-Fi, join", cText, 1, false)
 		big(y+38, "Wi-Fi", v.ssid)
 		big(y+62, "Password", v.pass)
 		status(v.joined, "Waiting for the stereo to join", "the stereo joined. Press NEXT.")
 	case setupDownload:
-		g.text(tx, y+21, "In the stereo's web browser, type:", cBlack, 1, false)
-		g.textC(x+w/2, y+40, fit(v.addr, w-16, 2, false), cBlack, 2, false)
-		g.text(tx, y+68, "Tap Download Duo Link, then install it.", cBlack, 1, false)
+		g.text(tx, y+21, "In the stereo's web browser, type:", cText, 1, false)
+		g.textC(x+w/2, y+40, fit(v.addr, w-16, 2, false), cText, 2, false)
+		g.text(tx, y+68, "Tap Download Duo Link, then install it.", cText, 1, false)
 		status(v.gotApp, "Waiting for the download", "downloaded. Install it, then NEXT.")
 	case setupOpen:
-		g.text(tx, y+21, "Open Duo Link on the stereo.", cBlack, 1, false)
-		g.text(tx, y+37, "It finds this Cardputer by itself. The", cBlack, 1, false)
-		g.text(tx, y+50, "first time, a code shows here: type it", cBlack, 1, false)
-		g.text(tx, y+63, "on the stereo.", cBlack, 1, false)
+		g.text(tx, y+21, "Open Duo Link on the stereo.", cText, 1, false)
+		g.text(tx, y+37, "It finds this Cardputer by itself. The", cText, 1, false)
+		g.text(tx, y+50, "first time, a code shows here: type it", cText, 1, false)
+		g.text(tx, y+63, "on the stereo.", cText, 1, false)
 		status(v.linked, "Waiting for Duo Link", "connected.")
 	case setupDone:
 		n := a.link.connected()
 		if n == "" {
 			n = "The stereo"
 		}
-		g.text(tx, y+21, fit(n, w-20, 1, true)+" shows this screen now.", cBlack, 1, false)
-		g.text(tx, y+40, "Next time, it joins the Cardputer's Wi-Fi", cBlack, 1, false)
-		g.text(tx, y+53, "and Duo Link connects by itself.", cBlack, 1, false)
+		g.text(tx, y+21, fit(n, w-20, 1, true)+" shows this screen now.", cText, 1, false)
+		g.text(tx, y+40, "Next time, it joins the Cardputer's Wi-Fi", cText, 1, false)
+		g.text(tx, y+53, "and Duo Link connects by itself.", cText, 1, false)
 		g.text(tx, y+72, "USB only charges: Duo Link uses Wi-Fi.", grey, 1, false)
 	}
 }
