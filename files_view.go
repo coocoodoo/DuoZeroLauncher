@@ -956,6 +956,8 @@ func (v *FileBrowser) menu(a *App) {
 	add("New text file", "", v.results != nil, func(a *App) { v.create(a, false) })
 	add("Compress to zip", countOf(t), len(t) == 0, func(a *App) { v.compress(a) })
 	add("Extract here", "", !(isFile && isArchive(c.name)), func(a *App) { v.extract(a, c.path) })
+	add("Send to a Cardputer", countOf(t), len(t) == 0, func(a *App) { sendFiles(a, t) })
+	add("Receive files", "", false, func(a *App) { a.push(newReceiveFiles(a)) })
 	add("Search below here", "", false, func(a *App) { v.search(a) })
 	add("Filter this folder", v.filter, false, func(a *App) {
 		a.push(newInput("FILTER", "Show names containing", v.filter, 40, false, func(q string) { v.filter, v.sel, v.top = strings.TrimSpace(q), 0, 0 }))

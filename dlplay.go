@@ -44,8 +44,12 @@ type dlOffer struct {
 	Size int64  `json:"size"` // bytes, packed
 	Sha  string `json:"sha256"`
 	Port int    `json:"port"`
-	Addr string `json:"-"` // host:port it was heard from
-	seen time.Time
+	// files offers (Files > Send to a Cardputer): Slug is "files"
+	Kind  string   `json:"kind,omitempty"`
+	Files []string `json:"files,omitempty"` // the first few names
+	Count int      `json:"count,omitempty"` // how many top-level items
+	Addr  string   `json:"-"`               // host:port it was heard from
+	seen  time.Time
 }
 
 // ---- which apps can be shared ----
@@ -243,19 +247,23 @@ func startSend(s shareable, port int, sent func(to string)) (*dlSender, error) {
 		os.Remove(f.Name())
 		return nil, fmt.Errorf("%s is too big to share (%s)", s.e.Name, humanBytes(size))
 	}
+	o := dlOffer{Host: hostname(), App: s.e.Name, Slug: s.slug, Size: size, Sha: hexenc.EncodeToString(h.Sum(nil))}
+	return serveOffer(o, f.Name(), dlMagic, port, sent)
+}
+
+// serveOffer serves a packed file (at /info and /get?code=) and announces it with magic until
+// stopped; it removes the file when stopped.
+func serveOffer(o dlOffer, file, magic string, port int, sent func(to string)) (*dlSender, error) {
 	ln, err := net.Listen("tcp4", fmt.Sprintf(":%d", port))
 	if err != nil {
 		ln, err = net.Listen("tcp4", ":0")
 		if err != nil {
-			os.Remove(f.Name())
+			os.Remove(file)
 			return nil, err
 		}
 	}
-	d := &dlSender{
-		offer: dlOffer{Host: hostname(), App: s.e.Name, Slug: s.slug, Size: size, Sha: hexenc.EncodeToString(h.Sum(nil)),
-			Port: ln.Addr().(*net.TCPAddr).Port},
-		code: newCode(), file: f.Name(), stop: make(chan struct{}), sent: sent,
-	}
+	o.Port = ln.Addr().(*net.TCPAddr).Port
+	d := &dlSender{offer: o, code: newCode(), file: file, stop: make(chan struct{}), sent: sent}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -289,7 +297,7 @@ func startSend(s shareable, port int, sent func(to string)) (*dlSender, error) {
 	})
 	d.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go d.srv.Serve(ln)
-	go dlAnnounce(d.offer, d.stop)
+	go dlAnnounce(d.offer, magic, d.stop)
 	return d, nil
 }
 
@@ -302,14 +310,14 @@ func (d *dlSender) Stop() {
 }
 
 // dlAnnounce broadcasts the offer every two seconds until stop closes.
-func dlAnnounce(o dlOffer, stop chan struct{}) {
+func dlAnnounce(o dlOffer, magic string, stop chan struct{}) {
 	c, err := net.ListenUDP("udp4", nil)
 	if err != nil {
 		return
 	}
 	defer c.Close()
 	js, _ := json.Marshal(o)
-	msg := append([]byte(dlMagic), js...)
+	msg := append([]byte(magic), js...)
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
 	for {
@@ -330,6 +338,11 @@ func dlAnnounce(o dlOffer, stop chan struct{}) {
 // dlListen collects announced offers until stop closes; found gets the current list (from the
 // listening goroutine) whenever it changes.
 func dlListen(stop chan struct{}, found func([]dlOffer)) error {
+	return dlListenFor(dlMagic, stop, found)
+}
+
+// dlListenFor is dlListen for offers announced with magic (apps, or files).
+func dlListenFor(magic string, stop chan struct{}, found func([]dlOffer)) error {
 	c, err := net.ListenUDP("udp4", &net.UDPAddr{Port: dlAnnouncePort})
 	if err != nil {
 		return err
@@ -337,7 +350,7 @@ func dlListen(stop chan struct{}, found func([]dlOffer)) error {
 	go func() { <-stop; c.Close() }()
 	go func() {
 		seen := map[string]dlOffer{}
-		buf := make([]byte, 1024)
+		buf := make([]byte, 2048)
 		last := ""
 		for {
 			c.SetReadDeadline(time.Now().Add(time.Second))
@@ -348,7 +361,7 @@ func dlListen(stop chan struct{}, found func([]dlOffer)) error {
 			default:
 			}
 			if err == nil {
-				if body, ok := strings.CutPrefix(string(buf[:n]), dlMagic); ok {
+				if body, ok := strings.CutPrefix(string(buf[:n]), magic); ok {
 					var o dlOffer
 					if json.Unmarshal([]byte(body), &o) == nil && slugRE.MatchString(o.Slug) && o.Port > 0 {
 						o.Addr = net.JoinHostPort(from.IP.String(), fmt.Sprint(o.Port))
@@ -403,10 +416,14 @@ func dlInfo(addr string) (dlOffer, error) {
 
 // dlFetch downloads an offer with the sender's code into a temp file and checks it.
 func dlFetch(o dlOffer, code string, progress func(done int64)) (string, error) {
-	if o.Size <= 0 || o.Size > dlMaxSize {
-		return "", errors.New("the app is too big")
+	limit, wait := int64(dlMaxSize), 10*time.Minute
+	if o.Kind == "files" {
+		limit, wait = filesMaxSize, time.Hour
 	}
-	cl := http.Client{Timeout: 10 * time.Minute}
+	if o.Size <= 0 || o.Size > limit {
+		return "", errors.New("that's too big to receive")
+	}
+	cl := http.Client{Timeout: wait}
 	resp, err := cl.Get("http://" + o.Addr + "/get?code=" + code)
 	if err != nil {
 		return "", err
@@ -573,6 +590,8 @@ type DLSend struct {
 	name    string
 	started time.Time
 	sentTo  []string
+	title   string    // "" for Download Play
+	how     [2]string // the two lines telling the other Cardputer what to do
 }
 
 func (v *DLSend) Animating(a *App) bool { return true }
@@ -591,13 +610,17 @@ func (v *DLSend) Bar(a *App) []BarItem {
 
 func (v *DLSend) Draw(a *App) {
 	g := a.g
-	pageTitle(a, "Download Play: sending", artWifi)
+	title, how := "Download Play: sending", [2]string{"On the other Cardputer: Download Play,", "Receive an app, then type this code:"}
+	if v.title != "" {
+		title, how = v.title, v.how
+	}
+	pageTitle(a, title, artWifi)
 	g.dsInfo(0, 20, W, 47, cButton)
 	g.text(8, 23, fit(v.name, 200, 1, false), cBlack, 1, false)
 	g.textR(W-8, 23, humanBytes(v.s.offer.Size), cBorder, 1, false)
 	g.dsInfoText(4, 35, W-8, 31)
-	g.text(10, 39, "On the other Cardputer: Download Play,", cWhite, 1, false)
-	g.text(10, 51, "Receive an app, then type this code:", cWhite, 1, false)
+	g.text(10, 39, how[0], cWhite, 1, false)
+	g.text(10, 51, how[1], cWhite, 1, false)
 	code := v.s.code
 	cw := fontClock30.width(code)
 	g.dsPlate((W-cw)/2-8, 72, cw+16, 38)

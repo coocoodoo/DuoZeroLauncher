@@ -308,6 +308,20 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.18.0)
+
+- Sharing files between Cardputers (`share.go`): Files > MENU > Send to a Cardputer packs the
+  marked items (`packFiles`, .tar.gz under their own names, no links) and serves them with
+  Download Play's server (`serveOffer`, refactored out of `startSend`), announced as
+  "DUOFILES1 {json}" on UDP 47131 (offer `Kind: "files"`, `Slug: "files"`, a few names,
+  count); older Duos listen only for "DUODL1", so they never try to install files as an app.
+  Receive files (Files menu, Settings > Sharing) lists offers (`dlListenFor`), asks the code,
+  checks free space, downloads with progress (1 GB packed at most, an hour), checks size and
+  SHA-256 (`dlFetch`), and unpacks into `~/Downloads/From <sender>/` (`unpackFilesTo`: nothing
+  outside it, no links, a taken top-level name gets " (2)"), then opens it in Files.
+- `DLSend` takes a title and two lines of instructions (files or apps). Settings > Sharing:
+  receive, how to send, where files go, Download Play. `share_test.go`.
+
 ## Local changes (0.17.0)
 
 - Video player (`video.go`, `VideoView`; Files opens videos with it, and Open with > Video

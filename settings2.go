@@ -207,6 +207,3 @@ func musicSettingsPage(a *App) View {
 	l.Refresh(a, l)
 	return l
 }
-
-// sharingPage is Settings > Sharing.
-func sharingPage(a *App) View { return page("SHARING", artSharing) }
