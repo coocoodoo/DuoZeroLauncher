@@ -308,6 +308,21 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.17.0)
+
+- Video player (`video.go`, `VideoView`; Files opens videos with it, and Open with > Video
+  player). `probeVideo` (ffprobe JSON: size, fps, codec, sound, length). One ffmpeg per play
+  or seek: the picture scaled to fit (or, with FILL, cropped to fill) 320x170 at most 30 fps
+  as raw RGB565 on stdout, the sound as s16le 44.1 kHz stereo on fd 3 (`ExtraFiles`, not on
+  Windows) to pacat "Duo Video" with the player's volume. `pictures` shows each frame when the
+  wall clock (paused time left out) reaches it, which also paces ffmpeg; late frames show at
+  once. Keys: 4/6 -/+10 s (Z/C too), 5 play/pause (Space), 7 fit/fill, 8 info, F/X volume,
+  Enter hides/shows the bar (it hides after 3 s of playing), Esc leaves. The end stops the
+  clock and shows the bar; a playing video keeps the screen on.
+- `video_test.go` makes a clip with ffmpeg (testsrc2 + sine) and plays, pauses, seeks, fills,
+  ends; run it with -race (two races were fixed: change the size only after stopping the old
+  playback, and set the clock under the lock).
+
 ## Local changes (0.16.0)
 
 - Music: shuffle and repeat (`music_extras.go`; off / all / one, saved in the music config;

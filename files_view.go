@@ -581,7 +581,8 @@ func (v *FileBrowser) open(a *App, e fileEntry) {
 	case e.kind == kExec || isScript(e.name):
 		confirm(a, "RUN?", "Run "+musicASCII(e.name)+" in the terminal?", func() { runInTerminal(a, e.path) })
 	case e.kind == kVideo:
-		a.notify("Duo can't play videos yet", true)
+		a.snd.Play("open")
+		a.push(newVideoView(a, e.path))
 	default:
 		openText(a, e.path, false)
 	}
@@ -1017,6 +1018,7 @@ func (v *FileBrowser) openWith(a *App, e fileEntry) {
 	items := []menuItem{
 		{"Photos", "", !isPhoto(e.name), func(a *App) { openInPhotos(a, e.path) }},
 		{"Music", "", !isAudio(e.name), func(a *App) { openInMusic(a, e.path) }},
+		{"Video player", "", e.kind != kVideo && e.kind != kAudio, func(a *App) { a.push(newVideoView(a, e.path)) }},
 		{"PS1", "", e.kind != kPS1 || !ps1Installed(), func(a *App) { openInPS1(a, e.path) }},
 		{"Text viewer", "", false, func(a *App) { openText(a, e.path, false) }},
 		{"Text editor", "", !editable(e), func(a *App) { v.edit(a, e.path) }},
