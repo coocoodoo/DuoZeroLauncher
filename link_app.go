@@ -125,20 +125,69 @@ func (a *App) newLink() *linkServer {
 				if n := a.link.connected(); n != "" {
 					a.notify("Duo Link: "+n+" connected", false)
 				}
-				if l, ok := a.top().(*RowList); ok && l.Tag == "duolink" && l.Refresh != nil {
-					l.Refresh(a, l)
-				}
-				a.dirty = true
+				a.refreshLinkPage()
 			}
 		},
 	})
 }
 
-// startLink turns Duo Link on (or says why it can't).
+// refreshLinkPage reloads Settings > Duo Link if it is on screen.
+func (a *App) refreshLinkPage() {
+	if l, ok := a.top().(*RowList); ok && l.Tag == "duolink" && l.Refresh != nil {
+		l.Refresh(a, l)
+	}
+	a.dirty = true
+}
+
+// startLink turns Duo Link on (or says why it can't), with the Cardputer's own Wi-Fi if chosen.
 func (a *App) startLink() {
 	if err := a.link.start(); err != nil {
 		a.notify("Duo Link can't start: "+err.Error(), true)
+		return
 	}
+	if a.cfg.LinkWifi && !a.linkWifiUp {
+		a.startLinkWifi(false, func(err error) {
+			if err != nil {
+				a.notify("Duo Link Wi-Fi: "+err.Error(), true)
+			}
+		})
+	}
+}
+
+// stopLink turns Duo Link off, and its Wi-Fi.
+func (a *App) stopLink() {
+	a.link.shutdown()
+	a.stopLinkWifi()
+}
+
+// startLinkWifi brings up the Cardputer's own Wi-Fi off the UI thread (with the busy screen if
+// busy); done runs on the UI thread.
+func (a *App) startLinkWifi(busy bool, done func(err error)) {
+	ssid, pass := a.link.hotspotCreds()
+	job := func() error { return startHotspot(ssid, pass) }
+	finish := func(err error) {
+		a.linkWifiUp = err == nil
+		if done != nil {
+			done(err)
+		}
+		a.refreshLinkPage()
+	}
+	if busy {
+		a.background("Turning on the Cardputer's Wi-Fi...", job, finish)
+		return
+	}
+	go func() {
+		err := job()
+		a.work <- func() { finish(err) }
+	}()
+}
+
+func (a *App) stopLinkWifi() {
+	if !a.linkWifiUp {
+		return
+	}
+	a.linkWifiUp = false
+	go stopHotspot()
 }
 
 // LinkPair shows the code a new stereo has to type.
@@ -184,14 +233,20 @@ func linkPage(a *App) View {
 		status := "OFF"
 		if a.link.isRunning() {
 			status = "WAITING FOR A STEREO"
+			if a.cfg.LinkWifi && !a.linkWifiUp {
+				status = "WI-FI NOT UP"
+			}
 			if n := a.link.connected(); n != "" {
 				status = "SHOWING ON " + n
 			}
 		}
 		addr := "NO NETWORK"
-		if ip := primaryIP(); ip != "" {
+		if a.cfg.LinkWifi && a.linkWifiUp {
+			addr = fmt.Sprintf("%s:%d", hotspotIP, a.link.port())
+		} else if ip := primaryIP(); ip != "" {
 			addr = fmt.Sprintf("%s:%d", ip, a.link.port())
 		}
+		ssid, pass := a.link.hotspotCreds()
 		l.Rows = []*Row{
 			{Label: "Duo Link", Kind: rowToggle, On: a.cfg.LinkOn, Do: func(a *App, r *Row) {
 				a.cfg.LinkOn = r.On
@@ -199,18 +254,42 @@ func linkPage(a *App) View {
 				if r.On {
 					a.startLink()
 				} else {
-					a.link.shutdown()
+					a.stopLink()
 				}
 				l.Refresh(a, l)
 			}},
+			{Label: "Set up a stereo", Kind: rowLink, Do: func(a *App, r *Row) { startLinkSetup(a) }},
+			{Label: "Connect over", Kind: rowChoice, Choices: []string{"CARDPUTER WI-FI", "SHARED WI-FI"},
+				Choice: btoi(!a.cfg.LinkWifi), Do: func(a *App, r *Row) {
+					a.cfg.LinkWifi = r.Choice == 0
+					a.save()
+					switch {
+					case a.cfg.LinkWifi && a.cfg.LinkOn:
+						a.startLinkWifi(true, func(err error) {
+							if err != nil {
+								alert(a, "DUO LINK WI-FI", err.Error())
+							}
+						})
+					case !a.cfg.LinkWifi:
+						a.stopLinkWifi()
+					}
+					l.Refresh(a, l)
+				}},
 			{Label: "Sound on the stereo", Kind: rowToggle, On: a.cfg.LinkAudio, Do: func(a *App, r *Row) {
 				a.cfg.LinkAudio = r.On
 				a.save()
 				a.notify("From the next time a stereo connects", false)
 			}},
 			{Label: "Status", Value: status},
-			{Label: "Address", Value: addr},
-			{Label: "Paired stereos", Kind: rowAction, Value: itoa(a.link.stereos()), Do: func(a *App, r *Row) {
+		}
+		if a.cfg.LinkWifi {
+			l.Rows = append(l.Rows,
+				&Row{Label: "Wi-Fi name", Value: ssid},
+				&Row{Label: "Wi-Fi password", Value: pass})
+		}
+		l.Rows = append(l.Rows,
+			&Row{Label: "Address", Value: addr},
+			&Row{Label: "Paired stereos", Kind: rowAction, Value: itoa(a.link.stereos()), Do: func(a *App, r *Row) {
 				if a.link.stereos() == 0 {
 					a.notify("No stereos paired", false)
 					return
@@ -219,11 +298,21 @@ func linkPage(a *App) View {
 					a.link.forget()
 					l.Refresh(a, l)
 				})
-			}},
-			{Label: "How to set it up", Kind: rowLink, Do: func(a *App, r *Row) {
-				a.push(&DocText{title: "DUO LINK", paras: linkHelp(addr)})
-			}},
+			}})
+		if a.cfg.LinkWifi {
+			l.Rows = append(l.Rows, &Row{Label: "New Wi-Fi password", Kind: rowAction, Do: func(a *App, r *Row) {
+				confirm(a, "NEW PASSWORD?", "Make a new Wi-Fi password? Stereos that joined will have to join again with it.", func() {
+					a.link.newHotspotPassword()
+					if a.linkWifiUp {
+						a.startLinkWifi(true, nil)
+					}
+					l.Refresh(a, l)
+				})
+			}})
 		}
+		l.Rows = append(l.Rows, &Row{Label: "How to set it up", Kind: rowLink, Do: func(a *App, r *Row) {
+			a.push(&DocText{title: "DUO LINK", paras: linkHelp(addr)})
+		}})
 		l.Footer = "Shows this screen on an Android car stereo"
 		if a.link.isRunning() && addr != "NO NETWORK" {
 			l.Footer = "Get the app: http://" + addr
@@ -236,22 +325,27 @@ func linkPage(a *App) View {
 func linkHelp(addr string) []string {
 	url := "http://" + addr
 	if addr == "NO NETWORK" {
-		url = "http://<this Cardputer's address>:" + itoa(linkPort)
+		url = "http://" + hotspotIP + ":" + itoa(linkPort)
 	}
 	return []string{
-		"Duo Link shows this screen on an Android car stereo, and the stereo's buttons press keys here.",
+		"Duo Link shows this screen on an Android car stereo, and the stereo's buttons press keys here. It works over Wi-Fi only: a USB cable just charges the Cardputer.",
 		"",
-		"1. Turn Duo Link on (this page).",
-		"2. Put the stereo and the Cardputer on the same Wi-Fi. The stereo's own hotspot works: join it in Settings > Wi-Fi.",
-		"3. Once: in the stereo's browser open " + url + " and install Duo Link from there.",
-		"4. Open Duo Link on the stereo, tap this Cardputer, and type the code this screen shows.",
+		"The easy way: Set up a stereo (on this page) walks you through it:",
+		"1. The Cardputer makes its own Wi-Fi and shows its name and password.",
+		"2. On the stereo, join that Wi-Fi in Settings > Wi-Fi. If it says there's no internet, stay connected.",
+		"3. In the stereo's browser, type " + url + " and install Duo Link from there.",
+		"4. Open Duo Link on the stereo; it finds the Cardputer. Type the code this screen shows.",
+		"",
+		"After that, the stereo joins the Cardputer's Wi-Fi and Duo Link connects by itself whenever both are on.",
+		"",
+		"Connect over SHARED WI-FI instead if the stereo and the Cardputer are on the same network already (the stereo's own hotspot, say).",
 		"",
 		"On the stereo:",
 		"- The buttons beside the picture are the arrows, OK (Enter), Back (Esc) and Tab. Hold Tab to lock.",
 		"- Tap Duo's key bar in the picture for keys 4 to 8; swipe on the picture for the arrows.",
 		"- Keys opens the stereo's keyboard for typing.",
 		"",
-		"While a stereo is connected this screen doesn't dim or turn off by itself.",
+		"While a stereo is connected this screen doesn't dim or turn off by itself. While the Cardputer's own Wi-Fi is on it isn't on any other Wi-Fi.",
 	}
 }
 

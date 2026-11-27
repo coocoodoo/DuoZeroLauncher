@@ -142,7 +142,7 @@ func newTestLink(t *testing.T) (*linkServer, *linkFakes) {
 		paired:  func() { f.mu.Lock(); f.paired++; f.mu.Unlock() },
 		changed: func() {},
 	})
-	s.addr, s.announce = "127.0.0.1:0", false
+	s.addr, s.announce, s.usbOK = "127.0.0.1:0", false, true
 	if err := s.start(); err != nil {
 		t.Fatal(err)
 	}
@@ -380,4 +380,98 @@ func TestDuoLinkScreens(t *testing.T) {
 	a.push(&DocText{title: "DUO LINK", paras: linkHelp("192.168.1.20:47140")})
 	a.draw()
 	a.saveShot("link-help")
+}
+
+// A stereo linking over the USB cable (adbd's forward arrives from loopback) is turned away.
+func TestDuoLinkRefusesUSB(t *testing.T) {
+	s, f := newTestLink(t)
+	s.mu.Lock()
+	s.usbOK = false
+	s.mu.Unlock()
+	c := dialLink(t, s, "Radio", "")
+	typ, m := c.next()
+	if reason, _ := m["reason"].(string); typ != lkDenied || !strings.Contains(reason, "USB") {
+		t.Fatalf("want DENIED about USB, got %#x %v", typ, m)
+	}
+	f.mu.Lock()
+	code := f.code
+	f.mu.Unlock()
+	if code != "" || s.connected() != "" {
+		t.Fatal("a USB link shouldn't pair or connect")
+	}
+	if !isUSBIface("usb0") || !isUSBIface("rndis0") || isUSBIface("wlan0") {
+		t.Error("isUSBIface")
+	}
+}
+
+func TestHotspotCreds(t *testing.T) {
+	for in, want := range map[string]string{"zero": "DuoLink-zero", "My Zero!": "DuoLink-MyZero", "": "DuoLink",
+		"ééé": "DuoLink", "a-very-long-cardputer-name-indeed": "DuoLink-a-very-long-cardputer-na"} {
+		if got := hotspotSSID(in); got != want || len(got) > 32 {
+			t.Errorf("hotspotSSID(%q) = %q, want %q", in, got, want)
+		}
+	}
+	s, _ := newTestLink(t)
+	ssid, pass := s.hotspotCreds()
+	if ssid != "DuoLink-zero" || len(pass) != 8 || strings.Trim(pass, "0123456789") != "" {
+		t.Fatalf("creds %q %q", ssid, pass)
+	}
+	if st := loadLinkStore(); st.SSID != ssid || st.Pass != pass {
+		t.Fatal("the Wi-Fi name and password should be kept")
+	}
+	if s2, p2 := s.hotspotCreds(); s2 != ssid || p2 != pass {
+		t.Fatal("the password should stay the same")
+	}
+	s.newHotspotPassword()
+	if _, p2 := s.hotspotCreds(); p2 == pass || len(p2) != 8 {
+		t.Fatal("a new password should be made")
+	}
+}
+
+// The setup steps (DSL_DOC_SHOTS=<dir> saves them): they move on when the stereo joins, downloads
+// the app and connects, and keys step through them by hand too.
+func TestDuoLinkSetupScreens(t *testing.T) {
+	t.Setenv("DSL_CONFIG", filepath.Join(t.TempDir(), "config"))
+	a := testApp(t)
+	a.link = a.newLink()
+	a.link.addr, a.link.announce = "127.0.0.1:0", false
+	a.link.start()
+	t.Cleanup(a.link.shutdown)
+	v := newLinkSetup(a, "DuoLink-zero", "48213907")
+	a.push(v)
+	a.draw()
+	a.saveShot("link-setup-1")
+	v.update(a, 0)
+	if v.step != setupJoin {
+		t.Fatal("nothing joined yet")
+	}
+	v.update(a, 1)
+	if v.step != setupDownload {
+		t.Fatalf("a stereo joined: step %d", v.step)
+	}
+	a.draw()
+	a.saveShot("link-setup-2")
+	a.link.downloads.Add(1)
+	v.update(a, 1)
+	if v.step != setupOpen {
+		t.Fatalf("the app was downloaded: step %d", v.step)
+	}
+	a.draw()
+	a.saveShot("link-setup-3")
+	v.Key(a, cp0.Key{Name: "LEFT"})
+	v.update(a, 1)
+	if v.step != setupDownload {
+		t.Fatal("going back by hand should stay back")
+	}
+	v.Key(a, cp0.Key{Name: "ENTER"})
+	v.Key(a, cp0.Key{Name: "ENTER"})
+	if v.step != setupDone {
+		t.Fatalf("Enter should step on: %d", v.step)
+	}
+	a.draw()
+	a.saveShot("link-setup-done")
+	v.Key(a, cp0.Key{Code: 1, Name: "ESC"})
+	if len(a.stack) != 1 || !v.closed.Load() {
+		t.Fatal("Esc should close the steps")
+	}
 }

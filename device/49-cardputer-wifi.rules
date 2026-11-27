@@ -1,4 +1,5 @@
-// Duo Launcher: let pi add and join Wi-Fi networks from the launcher. The launcher's session
-// isn't an active local login, so polkit would refuse (the Wi-Fi screen says "service unavailable").
+// Duo Launcher: let pi add and join Wi-Fi networks from the launcher, and start Duo Link's own
+// Wi-Fi (a WPA2 hotspot: wifi.share.protected). The launcher's session isn't an active local
+// login, so polkit would refuse (the Wi-Fi screen says "service unavailable").
 // Installed by Duo's Doctor. Undo: delete this file, then systemctl restart polkit.
-polkit.addRule(function(action, subject) { if (subject.user == 'pi' && (action.id == 'org.freedesktop.NetworkManager.network-control' || action.id == 'org.freedesktop.NetworkManager.settings.modify.system')) { return polkit.Result.YES; } });
+polkit.addRule(function(action, subject) { if (subject.user == 'pi' && (action.id == 'org.freedesktop.NetworkManager.network-control' || action.id == 'org.freedesktop.NetworkManager.settings.modify.system' || action.id == 'org.freedesktop.NetworkManager.wifi.share.protected' || action.id == 'org.freedesktop.NetworkManager.wifi.share.open')) { return polkit.Result.YES; } });

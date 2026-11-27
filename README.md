@@ -108,15 +108,22 @@ cheap aftermarket kind) and lets the stereo press its keys: the arrows, OK, Back
 the picture, a tap on Duo's key bar for keys 4-8, a swipe for the arrows, and the stereo's
 keyboard for typing. It shows apps Duo starts, too.
 
-1. Turn Duo Link on, and put the stereo and the Cardputer on the same Wi-Fi (the stereo's
-   hotspot works).
-2. Once: open `http://<the Cardputer's address>:47140` in the stereo's browser and install the
-   Duo Link app from there (the address is on the Duo Link page).
-3. Open Duo Link on the stereo, tap the Cardputer, and type the code it shows.
+Easiest: Settings > Duo Link > **Set up a stereo**. The Cardputer makes its own Wi-Fi and walks
+you through the stereo's side, moving on by itself as each step is done:
 
-The Cardputer's sound plays on the stereo too (Settings > Duo Link > Sound on the stereo). Over
-USB instead of Wi-Fi: set the Cardputer's USB switch to the LEFT and plug it into the stereo's
-USB port; Duo Link finds it, asks for USB access once, and the cable charges the Cardputer.
+1. On the stereo, join the Wi-Fi the Cardputer shows (`DuoLink-<name>`, an 8-digit password).
+   If Android says it has no internet, stay connected.
+2. In the stereo's browser type `10.42.0.1:47140` and install the Duo Link app from there.
+3. Open Duo Link on the stereo; it finds the Cardputer. Type the code the Cardputer shows.
+
+After that the stereo rejoins the Cardputer's Wi-Fi and Duo Link connects by itself whenever
+both are on. While the Cardputer's own Wi-Fi is up it isn't on any other Wi-Fi; set Duo Link >
+Connect over to SHARED WI-FI to use a network both are already on (the stereo's hotspot, say).
+
+The Cardputer's sound plays on the stereo too (Settings > Duo Link > Sound on the stereo).
+Duo Link works over **Wi-Fi only**: a link over the USB cable kept dropping, so it is refused,
+and USB only charges the Cardputer. The Cardputer's Wi-Fi needs the Doctor's "Wi-Fi settings
+allowed" fix (0.20.0 adds the hotspot permission to it).
 
 The app's source is in `android/duolink` (`build.sh` builds it).
 

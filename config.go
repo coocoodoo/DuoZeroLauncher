@@ -38,6 +38,7 @@ type Config struct {
 	LockOnWake bool
 	LinkOn     bool // Duo Link: show the screen on a car stereo
 	LinkAudio  bool // and send it the sound
+	LinkWifi   bool // over the Cardputer's own Wi-Fi (a hotspot the stereo joins)
 	path       string
 }
 
@@ -136,6 +137,8 @@ func loadConfig() *Config {
 			c.LinkOn = b
 		case "link_audio":
 			c.LinkAudio = b
+		case "link_wifi":
+			c.LinkWifi = b
 		}
 	}
 	return c
@@ -175,6 +178,7 @@ func (c *Config) Save() error {
 		"last_ssh=" + c.LastSSH, "picto_addr=" + c.PictoAddr, "picto_code=" + c.PictoCode, "alarm_on=" + bit(c.AlarmOn),
 		"alarm_h=" + strconv.Itoa(c.AlarmH), "alarm_m=" + strconv.Itoa(c.AlarmM),
 		"pin=" + c.PIN, "lock_on_wake=" + bit(c.LockOnWake), "duo_link=" + bit(c.LinkOn), "link_audio=" + bit(c.LinkAudio),
+		"link_wifi=" + bit(c.LinkWifi),
 	}
 	if err := os.MkdirAll(filepath.Dir(c.path), 0o755); err != nil {
 		return err

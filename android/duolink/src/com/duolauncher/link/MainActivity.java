@@ -2,13 +2,7 @@ package com.duolauncher.link;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.hardware.usb.UsbDevice;
-import android.hardware.usb.UsbManager;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,14 +15,18 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Duo Link for Android car stereos: finds a Cardputer running Duo Launcher on the same network,
- * pairs with the code it shows, then shows its screen and sends keys back.
+ * Duo Link for Android car stereos: finds a Cardputer running Duo Launcher over Wi-Fi (its own
+ * Wi-Fi, "DuoLink-...", or a shared one), pairs with the code it shows, then shows its screen and
+ * sends keys back. Wi-Fi only: a USB cable just charges the Cardputer.
  */
 public final class MainActivity extends Activity implements ScreenView.Host, LinkClient.Listener, Discovery.Listener {
+    /** The Cardputer on its own Wi-Fi (Duo's hotspot). */
+    static final String HOTSPOT_HOST = "10.42.0.1";
+    static final int PORT = 47140;
+
     private final Handler ui = new Handler(Looper.getMainLooper());
     private ScreenView view;
     private Discovery discovery;
@@ -36,13 +34,11 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
     private SharedPreferences prefs;
     private boolean keyboardShown;
     private boolean userLeft; // the user chose Leave: don't reconnect on our own
+    private boolean welcomed; // the current connection got as far as WELCOME
+    private boolean quiet; // the current connection is a background try: no "connecting" text
+    private boolean altTurn; // background tries alternate the last address and the hotspot's
     private long lastTry;
     private AlertDialog dialog;
-    private UsbManager usb;
-    private boolean usbAsked; // permission asked for the Cardputer plugged in now
-    private List<Discovery.Device> netDevices = new ArrayList<>();
-    private UsbReceiver usbReceiver;
-    static final String USB_PERMISSION = "com.duolauncher.link.USB_PERMISSION";
 
     @Override
     protected void onCreate(Bundle b) {
@@ -53,78 +49,7 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
         setContentView(view);
         immersive();
         discovery = new Discovery(this, this);
-        usb = (UsbManager) getSystemService(Context.USB_SERVICE);
-        usbReceiver = new UsbReceiver(this);
-        IntentFilter f = new IntentFilter(USB_PERMISSION);
-        f.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(usbReceiver, f, Context.RECEIVER_NOT_EXPORTED);
-        else registerReceiver(usbReceiver, f);
         showSearching();
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(intent.getAction())) {
-            usbAsked = false;
-            checkUsb();
-        }
-    }
-
-    /** A Cardputer plugged in over USB (USB switch to the LEFT): list it, and connect. */
-    void checkUsb() {
-        UsbDevice d = AdbTransport.findCardputer(usb);
-        refreshDevices();
-        if (d == null || client != null || userLeft || dialog != null) return;
-        if (usb.hasPermission(d)) {
-            connectUsb(d);
-        } else if (!usbAsked) {
-            usbAsked = true;
-            Intent i = new Intent(USB_PERMISSION).setPackage(getPackageName());
-            int flags = Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0;
-            usb.requestPermission(d, PendingIntent.getBroadcast(this, 0, i, flags));
-        }
-    }
-
-    void onUsbIntent(Intent intent) {
-        if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(intent.getAction())) {
-            usbAsked = false;
-            LinkClient c = client;
-            if (c != null && c.usbDevice != null) c.close();
-            refreshDevices();
-            return;
-        }
-        UsbDevice d = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-        if (d != null && intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) connectUsb(d);
-        else view.status = "USB: permission wasn't given. Unplug and plug the Cardputer in again to be asked again.";
-        view.invalidate();
-    }
-
-    private void connectUsb(UsbDevice d) {
-        Discovery.Device dev = usbEntry();
-        connectTo(dev);
-        LinkClient c = client;
-        if (c != null && c.usbDevice == null) { // connectTo made a network client: make it USB
-            c.close();
-        }
-    }
-
-    private Discovery.Device usbEntry() {
-        Discovery.Device d = new Discovery.Device();
-        d.id = "usb";
-        d.host = "usb";
-        d.port = 47140;
-        d.name = "Cardputer (USB)";
-        d.seen = System.currentTimeMillis();
-        return d;
-    }
-
-    private void refreshDevices() {
-        List<Discovery.Device> all = new ArrayList<>();
-        if (AdbTransport.findCardputer(usb) != null) all.add(usbEntry());
-        all.addAll(netDevices);
-        view.devices = all;
-        if (client == null) view.invalidate();
     }
 
     @Override
@@ -133,7 +58,6 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
         immersive();
         discovery.start();
         ui.post(retry);
-        checkUsb();
     }
 
     @Override
@@ -149,10 +73,6 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        try {
-            unregisterReceiver(usbReceiver);
-        } catch (RuntimeException ignored) {
-        }
         LinkClient c = client;
         if (c != null) c.close();
     }
@@ -173,45 +93,52 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
 
     private void showSearching() {
         view.title = "Duo Link";
-        view.status = "Looking for your Cardputer on this network...\n"
-                + "On the Cardputer: Settings > Launcher > Duo Link, turn it on.\n"
-                + "Same Wi-Fi (this stereo's hotspot works), or a USB cable\n"
-                + "with the Cardputer's USB switch to the LEFT.";
+        view.status = "Looking for your Cardputer over Wi-Fi...\n"
+                + "On the Cardputer: Settings > Duo Link > Set up a stereo, then join\n"
+                + "the Wi-Fi it shows (DuoLink-...) in this stereo's Wi-Fi settings.\n"
+                + "Duo Link uses Wi-Fi only; a USB cable just charges the Cardputer.";
         String last = prefs.getString("last_name", "");
         if (!last.isEmpty() && !userLeft) view.status += "\nWill reconnect to " + last + " when it shows up.";
         view.devices = discovery == null ? view.devices : discovery.devices();
         view.dropPicture();
     }
 
-    // tries the last Cardputer every few seconds while nothing is connected (in case broadcasts
-    // don't get through this network)
+    // tries the Cardputer every few seconds while nothing is connected: the last one if it
+    // announces itself (or the only one heard, the first time), else its last address and the
+    // Cardputer's own Wi-Fi address in turn (in case broadcasts don't get through)
     private final Runnable retry = this::retryTick;
 
     private void retryTick() {
-        {
-            ui.postDelayed(retry, 3000);
-            if (client != null || userLeft || dialog != null) return;
-            String id = prefs.getString("last_id", "");
-            if (id.isEmpty()) return;
-            if (id.equals("usb")) {
-                checkUsb();
+        ui.postDelayed(retry, 3000);
+        if (client != null || userLeft || dialog != null) return;
+        String id = prefs.getString("last_id", "");
+        List<Discovery.Device> heard = discovery.devices();
+        for (Discovery.Device d : heard) {
+            if (d.id.equals(id)) {
+                connect(d, true);
                 return;
             }
-            for (Discovery.Device d : discovery.devices()) {
-                if (d.id.equals(id)) {
-                    connectTo(d);
-                    return;
-                }
-            }
-            if (System.currentTimeMillis() - lastTry > 9000) {
-                Discovery.Device d = new Discovery.Device();
-                d.id = id;
-                d.host = prefs.getString("last_host", "");
-                d.port = prefs.getInt("last_port", 47140);
-                d.name = prefs.getString("last_name", d.host);
-                if (!d.host.isEmpty()) connectTo(d);
-            }
         }
+        if (id.isEmpty() && heard.size() == 1) {
+            connect(heard.get(0), true);
+            return;
+        }
+        if (System.currentTimeMillis() - lastTry < 9000) return;
+        String host = prefs.getString("last_host", "");
+        altTurn = !altTurn;
+        Discovery.Device d = new Discovery.Device();
+        if (host.isEmpty() || host.equals(HOTSPOT_HOST) || altTurn) {
+            d.host = HOTSPOT_HOST;
+            d.port = PORT;
+            d.id = host.equals(HOTSPOT_HOST) && !id.isEmpty() ? id : HOTSPOT_HOST + ":" + PORT;
+            d.name = host.equals(HOTSPOT_HOST) ? prefs.getString("last_name", "Cardputer") : "Cardputer";
+        } else {
+            d.id = id.isEmpty() ? host : id;
+            d.host = host;
+            d.port = prefs.getInt("last_port", PORT);
+            d.name = prefs.getString("last_name", host);
+        }
+        connect(d, true);
     }
 
     // ---- ScreenView.Host ----
@@ -223,28 +150,23 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
 
     @Override
     public void connectTo(Discovery.Device d) {
+        connect(d, false);
+    }
+
+    private void connect(Discovery.Device d, boolean background) {
         if (client != null) return;
         userLeft = false;
+        welcomed = false;
+        quiet = background;
         lastTry = System.currentTimeMillis();
         String token = prefs.getString("token_" + d.id, "");
-        prefs.edit().putString("last_id", d.id).putString("last_host", d.host).putInt("last_port", d.port)
-                .putString("last_name", d.name).apply();
-        view.status = "Connecting to " + d.name + " (" + d.host + ")...";
-        view.invalidate();
-        String me = Build.MODEL == null || Build.MODEL.isEmpty() ? "Car stereo" : Build.MODEL;
-        LinkClient c = new LinkClient(d.host, d.port, d.id, token, me, this);
-        if ("usb".equals(d.id)) {
-            UsbDevice u = AdbTransport.findCardputer(usb);
-            if (u == null || !usb.hasPermission(u)) {
-                view.status = "Plug the Cardputer in (USB switch to the LEFT), then allow USB access.";
-                view.invalidate();
-                checkUsb();
-                return;
-            }
-            c.usbCtx = getApplicationContext();
-            c.usbManager = usb;
-            c.usbDevice = u;
+        if (token.isEmpty()) token = prefs.getString("token_host_" + d.host + ":" + d.port, "");
+        if (!background) {
+            view.status = "Connecting to " + d.name + " (" + d.host + ")...";
+            view.invalidate();
         }
+        String me = Build.MODEL == null || Build.MODEL.isEmpty() ? "Car stereo" : Build.MODEL;
+        LinkClient c = new LinkClient(getApplicationContext(), d.host, d.port, d.id, token, me, this);
         client = c;
         c.start();
     }
@@ -253,19 +175,22 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
     public void askAddress() {
         final EditText e = new EditText(this);
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        e.setHint("192.168.1.20");
+        e.setHint(HOTSPOT_HOST + ":" + PORT);
         e.setText(prefs.getString("last_host", ""));
         dialog = new AlertDialog.Builder(this).setTitle("Cardputer's address")
-                .setMessage("Shown on the Cardputer in Settings > Launcher > Duo Link.")
+                .setMessage("Shown on the Cardputer in Settings > Duo Link. On the Cardputer's own Wi-Fi it is "
+                        + HOTSPOT_HOST + ".")
                 .setView(e)
                 .setPositiveButton("Connect", (di, w) -> {
                     dialog = null;
                     String s = e.getText().toString().trim();
+                    if (s.startsWith("http://")) s = s.substring(7);
+                    if (s.endsWith("/")) s = s.substring(0, s.length() - 1);
                     if (s.isEmpty()) return;
                     Discovery.Device d = new Discovery.Device();
                     int colon = s.lastIndexOf(':');
                     d.host = colon > 0 ? s.substring(0, colon) : s;
-                    d.port = 47140;
+                    d.port = PORT;
                     try {
                         if (colon > 0) d.port = Integer.parseInt(s.substring(colon + 1));
                     } catch (NumberFormatException ignored) {
@@ -307,6 +232,7 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
         ui.post(() -> {
             LinkClient c = client;
             if (c == null) return;
+            quiet = false;
             final EditText e = new EditText(this);
             e.setInputType(InputType.TYPE_CLASS_NUMBER);
             e.setHint("1234");
@@ -329,13 +255,20 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
     }
 
     @Override
-    public void onWelcome(String device, String token) {
+    public void onWelcome(String device, String token, String deviceId) {
         LinkClient c = client;
         if (c == null) return;
-        SharedPreferences.Editor ed = prefs.edit().putString("last_name", device);
-        if (!token.isEmpty()) ed.putString("token_" + c.id, token);
+        String id = deviceId.isEmpty() ? c.id : deviceId;
+        SharedPreferences.Editor ed = prefs.edit().putString("last_name", device).putString("last_id", id)
+                .putString("last_host", c.host).putInt("last_port", c.port);
+        if (!token.isEmpty()) {
+            ed.putString("token_" + id, token).putString("token_" + c.id, token)
+                    .putString("token_host_" + c.host + ":" + c.port, token);
+        }
         ed.apply();
         ui.post(() -> {
+            welcomed = true;
+            quiet = false;
             if (dialog != null) {
                 dialog.dismiss();
                 dialog = null;
@@ -361,11 +294,17 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
             showSearching();
             if (denied) {
                 userLeft = true;
-                if (c != null) prefs.edit().remove("token_" + c.id).apply();
+                if (c != null) {
+                    prefs.edit().remove("token_" + c.id).remove("token_host_" + c.host + ":" + c.port).apply();
+                }
                 view.status = "Not connected: " + why + "\nTap your Cardputer below to try again.";
-            } else if (c != null && !userLeft) {
+            } else if (c != null && !userLeft && welcomed) {
                 view.status = "Lost the connection (" + why + ").\nReconnecting when the Cardputer shows up...";
+            } else if (c != null && !quiet && !userLeft) {
+                view.status = "Couldn't connect to " + c.host + " (" + why + ").\nStill looking...";
             }
+            welcomed = false;
+            quiet = false;
             view.invalidate();
         });
     }
@@ -375,12 +314,12 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
     @Override
     public void onDevices(List<Discovery.Device> devices) {
         ui.post(() -> {
-            netDevices = devices;
-            refreshDevices();
+            view.devices = devices;
+            if (client == null) view.invalidate();
         });
     }
 
-    // ---- hardware keys (a USB keyboard, steering-wheel arrows) ----
+    // ---- hardware keys (a Bluetooth keyboard, steering-wheel arrows) ----
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {

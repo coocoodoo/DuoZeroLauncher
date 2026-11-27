@@ -427,8 +427,8 @@ func doctorChecks() []*docCheck {
 
 	// 7. Wi-Fi networks can be added from the launcher
 	wf := add(&docCheck{Key: "wifi", Section: "System", Name: "Wi-Fi settings allowed", Root: true,
-		What:    "Lets you add and join Wi-Fi networks from the launcher.",
-		Why:     "adding or joining Wi-Fi networks says \"service unavailable\"",
+		What:    "Lets you add and join Wi-Fi networks from the launcher, and Duo Link make its own Wi-Fi.",
+		Why:     "adding or joining Wi-Fi networks says \"service unavailable\", and Duo Link can't make its Wi-Fi",
 		rootArg: "wifi:" + me, undoArg: "undo-wifi"})
 	if _, err := exec.LookPath("nmcli"); err != nil {
 		wf.State, wf.Detail = docNA, "no NetworkManager here"
@@ -444,8 +444,9 @@ func doctorChecks() []*docCheck {
 			return "?"
 		}
 		nc, ms := perm("org.freedesktop.NetworkManager.network-control"), perm("org.freedesktop.NetworkManager.settings.modify.system")
-		wf.Detail = "network-control " + nc + ", modify.system " + ms
-		if nc == "yes" && ms == "yes" {
+		sh := perm("org.freedesktop.NetworkManager.wifi.share.protected")
+		wf.Detail = "network-control " + nc + ", modify.system " + ms + ", wifi.share " + sh
+		if nc == "yes" && ms == "yes" && sh == "yes" {
 			wf.State = docOK
 		} else if !nameRE.MatchString(me) {
 			wf.State = docInfo

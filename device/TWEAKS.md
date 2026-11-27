@@ -118,13 +118,15 @@ app is open: it kills that app (and any Claude session running in it).
   followed by `systemctl restart polkit`:
 
   ```js
-  polkit.addRule(function(action, subject) { if (subject.user == 'pi' && (action.id == 'org.freedesktop.NetworkManager.network-control' || action.id == 'org.freedesktop.NetworkManager.settings.modify.system')) { return polkit.Result.YES; } });
+  polkit.addRule(function(action, subject) { if (subject.user == 'pi' && (action.id == 'org.freedesktop.NetworkManager.network-control' || action.id == 'org.freedesktop.NetworkManager.settings.modify.system' || action.id == 'org.freedesktop.NetworkManager.wifi.share.protected' || action.id == 'org.freedesktop.NetworkManager.wifi.share.open')) { return polkit.Result.YES; } });
   ```
 
 - **Why:** the launcher's session isn't an active local login, so polkit refuses to let pi add
-  or join networks. The stock Wi-Fi screen shows that as "service unavailable".
+  or join networks. The stock Wi-Fi screen shows that as "service unavailable". Duo Link's own
+  Wi-Fi (0.20.0, a WPA2 hotspot) also needs `wifi.share.protected`.
 - **Check:** `nmcli general permissions` as pi shows `yes` for
-  `org.freedesktop.NetworkManager.network-control` and `...settings.modify.system`.
+  `org.freedesktop.NetworkManager.network-control`, `...settings.modify.system` and
+  `...wifi.share.protected`.
 - **Fix:** write the rule and restart polkit.
 - **Undo:** delete the rule and restart polkit.
 - **Trade-off:** anything running as pi can change the network settings.

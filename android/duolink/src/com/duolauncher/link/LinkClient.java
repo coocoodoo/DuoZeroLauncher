@@ -1,8 +1,6 @@
 package com.duolauncher.link;
 
 import android.content.Context;
-import android.hardware.usb.UsbDevice;
-import android.hardware.usb.UsbManager;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
@@ -19,8 +17,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * The Duo Link connection to one Cardputer (the protocol is described in link.go in Duo's
- * source). One thread reads, one thread writes; the screen is kept in {@link #px}.
+ * The Duo Link connection to one Cardputer over Wi-Fi (the protocol is described in link.go in
+ * Duo's source). One thread reads, one thread writes; the screen is kept in {@link #px}.
  */
 final class LinkClient {
     // client -> Cardputer
@@ -30,7 +28,7 @@ final class LinkClient {
 
     interface Listener {
         void onNeedPair(String device, int triesLeft, boolean wrong);
-        void onWelcome(String device, String token);
+        void onWelcome(String device, String token, String deviceId);
         void onFrame();
         void onClosed(String why, boolean denied);
     }
@@ -46,16 +44,13 @@ final class LinkClient {
     private final String token, myName;
     private final LinkedBlockingQueue<byte[]> out = new LinkedBlockingQueue<>();
     private volatile Socket sock;
-    private volatile AdbTransport usbLink;
     private final AudioPlayer audio = new AudioPlayer();
-    // over USB instead of the network (the Cardputer's ADB, "tcp:47140")
-    Context usbCtx;
-    UsbManager usbManager;
-    UsbDevice usbDevice;
+    private final Context ctx; // finds the Wi-Fi network for the socket
     private volatile boolean closed;
     private volatile boolean denied;
 
-    LinkClient(String host, int port, String id, String token, String myName, Listener l) {
+    LinkClient(Context ctx, String host, int port, String id, String token, String myName, Listener l) {
+        this.ctx = ctx;
         this.host = host;
         this.port = port;
         this.id = id;
@@ -73,8 +68,6 @@ final class LinkClient {
     void close() {
         closed = true;
         audio.stop();
-        AdbTransport u = usbLink;
-        if (u != null) u.close();
         Socket s = sock;
         if (s != null) {
             try {
@@ -135,22 +128,13 @@ final class LinkClient {
     private void readLoop() {
         String why = "Connection closed";
         try {
-            java.io.InputStream rawIn;
-            java.io.OutputStream rawOut;
-            if (usbDevice != null) {
-                AdbTransport u = AdbTransport.open(usbCtx, usbManager, usbDevice, "tcp:" + port);
-                usbLink = u;
-                rawIn = u.input;
-                rawOut = u.output;
-            } else {
-                Socket s = new Socket();
-                sock = s;
-                s.setTcpNoDelay(true);
-                s.connect(new InetSocketAddress(host, port), 5000);
-                s.setSoTimeout(15000); // the Cardputer sends at least a PONG every few seconds
-                rawIn = s.getInputStream();
-                rawOut = s.getOutputStream();
-            }
+            Socket s = WifiNet.socket(ctx);
+            sock = s;
+            s.setTcpNoDelay(true);
+            s.connect(new InetSocketAddress(host, port), 5000);
+            s.setSoTimeout(15000); // the Cardputer sends at least a PONG every few seconds
+            java.io.InputStream rawIn = s.getInputStream();
+            java.io.OutputStream rawOut = s.getOutputStream();
             DataOutputStream o = new DataOutputStream(new java.io.BufferedOutputStream(rawOut, 65536));
             o.write("DLK1".getBytes(StandardCharsets.US_ASCII));
             o.flush();
@@ -185,7 +169,7 @@ final class LinkClient {
                                 px = new short[nw * nh];
                             }
                         }
-                        listener.onWelcome(j.optString("name", host), j.optString("token", ""));
+                        listener.onWelcome(j.optString("name", host), j.optString("token", ""), j.optString("id", ""));
                         break;
                     }
                     case NEEDPAIR:

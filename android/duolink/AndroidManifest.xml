@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Duo Link: shows a Cardputer running Duo Launcher on an Android car stereo, and sends keys back. -->
+<!-- Duo Link: shows a Cardputer running Duo Launcher on an Android car stereo, and sends keys back.
+     Wi-Fi only (the Cardputer's own Wi-Fi or a shared one); a USB cable only charges the Cardputer. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.duolauncher.link">
 
@@ -7,12 +8,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <application
         android:label="Duo Link"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
+        android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
         <activity
             android:name=".MainActivity"
@@ -25,12 +26,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- a Cardputer plugged in (its ADB interface): offer to open Duo Link -->
-            <intent-filter>
-                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
-            </intent-filter>
-            <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-                android:resource="@xml/device_filter" />
         </activity>
     </application>
 </manifest>

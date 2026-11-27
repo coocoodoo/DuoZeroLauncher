@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.19.0"
+const version = "0.20.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -92,6 +92,7 @@ type App struct {
 	doctorAskFP string
 	link        *linkServer  // Duo Link: a car stereo showing this screen
 	linkKbd     linkKeyboard // writes the stereo's keys into the keyboard device
+	linkWifiUp  bool         // Duo Link's own Wi-Fi (the hotspot) is up
 	appRunning  atomic.Bool  // another app has the screen (runApp)
 	music       *musicPlayer // Music (built in): plays on when its screen is closed
 	appsCheckAt time.Time    // checkApps: when the launcher folders were last looked at
@@ -1014,6 +1015,9 @@ func (a *App) shutdown() {
 	a.music.Stop() // (also its ffmpeg and pacat)
 	if a.link != nil {
 		a.link.shutdown()
+	}
+	if a.leave && a.linkWifiUp { // the stock launcher gets the usual Wi-Fi back
+		stopHotspot()
 	}
 	if a.blanked { // never leave whatever runs next with the panel powered down
 		a.scr.Blank(false)

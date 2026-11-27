@@ -19,6 +19,10 @@ package main
 // gets a token, kept by the stereo; Duo keeps only its SHA-256 (duolink.json). One stereo is
 // connected at a time. The screen is read back from the framebuffer, so apps Duo starts are shown
 // too; keys are written into the keyboard's event device, so they reach those apps as well.
+//
+// Wi-Fi only: the stereo joins the Cardputer's own Wi-Fi (link_hotspot.go) or a shared one. A
+// link over the USB cable (adbd's "tcp:47140" forward, or a USB network gadget) is refused: it
+// kept dropping, so the cable only charges.
 
 import (
 	"bufio"
@@ -40,6 +44,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -91,7 +96,13 @@ type linkHooks struct {
 type linkStore struct {
 	ID      string       `json:"id"`
 	Stereos []linkStereo `json:"stereos"`
+	SSID    string       `json:"ssid,omitempty"` // the Cardputer's own Wi-Fi for Duo Link
+	Pass    string       `json:"pass,omitempty"` // and its password
 }
+
+// linkNoUSB is why a stereo linking over the USB cable is turned away.
+const linkNoUSB = "Duo Link doesn't work over USB (the cable only charges the Cardputer). " +
+	"Join the Cardputer's Wi-Fi instead: on the Cardputer, Settings > Duo Link > Set up a stereo."
 
 type linkStereo struct {
 	Name  string `json:"name"`
@@ -140,6 +151,45 @@ type linkServer struct {
 	running  bool
 	announce bool
 	alive    time.Duration // linkKeepAlive (shorter in tests)
+	usbOK    bool          // tests: allow links from loopback (on the device that is adbd over USB)
+
+	downloads atomic.Int32 // the app was downloaded this many times (the setup screen watches it)
+}
+
+func (s *linkServer) apkDownloads() int { return int(s.downloads.Load()) }
+
+// viaUSB: the connection came over the USB cable, through adbd's forward (from this machine's
+// own loopback) or a USB network gadget (usb0, rndis0...).
+func viaUSB(c net.Conn) bool {
+	la, ok := c.LocalAddr().(*net.TCPAddr)
+	if !ok {
+		return false
+	}
+	if la.IP.IsLoopback() {
+		return true
+	}
+	ifs, _ := net.Interfaces()
+	for _, i := range ifs {
+		if !isUSBIface(i.Name) {
+			continue
+		}
+		addrs, _ := i.Addrs()
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok && n.IP.Equal(la.IP) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isUSBIface(name string) bool {
+	for _, p := range []string{"usb", "rndis", "ecm", "ncm"} {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func newLinkServer(h linkHooks) *linkServer {
@@ -341,15 +391,21 @@ func (s *linkServer) serve(c net.Conn) {
 	if string(magic) != "DLK1" {
 		return
 	}
-	s.mu.Lock()
-	until := s.blocked[ip]
-	s.mu.Unlock()
-	if time.Now().Before(until) {
-		lc.sendJSON(lkDenied, map[string]string{"reason": "Too many wrong codes. Wait a minute and try again."})
-		return
-	}
+	// HELLO is read before any refusal: closing with it unread would reset the connection, and
+	// the stereo could lose the reason
 	typ, p, err := lc.read()
 	if err != nil || typ != lkHello {
+		return
+	}
+	s.mu.Lock()
+	until, usbOK := s.blocked[ip], s.usbOK
+	s.mu.Unlock()
+	if !usbOK && viaUSB(c) {
+		lc.sendJSON(lkDenied, map[string]string{"reason": linkNoUSB})
+		return
+	}
+	if time.Now().Before(until) {
+		lc.sendJSON(lkDenied, map[string]string{"reason": "Too many wrong codes. Wait a minute and try again."})
 		return
 	}
 	var hello struct {
@@ -388,7 +444,7 @@ func (s *linkServer) serve(c net.Conn) {
 		s.mu.Unlock()
 		s.h.changed()
 	}()
-	welcome := map[string]any{"name": s.h.name(), "w": W, "h": H}
+	welcome := map[string]any{"name": s.h.name(), "w": W, "h": H, "id": s.store.ID}
 	if token != hello.Token {
 		welcome["token"] = token // new: the stereo keeps it for next time
 	}
@@ -737,6 +793,7 @@ func (s *linkServer) serveHTTP(lc *linkConn) {
 	w := bufio.NewWriter(lc.c)
 	defer w.Flush()
 	if len(path) > 0 && strings.HasPrefix(path[0], "/duolink.apk") {
+		s.downloads.Add(1)
 		fmt.Fprintf(w, "HTTP/1.0 200 OK\r\nContent-Type: application/vnd.android.package-archive\r\n"+
 			"Content-Disposition: attachment; filename=\"duolink.apk\"\r\nContent-Length: %d\r\nConnection: close\r\n\r\n", len(duoLinkAPK))
 		w.Write(duoLinkAPK)
@@ -749,8 +806,10 @@ li{margin:.5em 0}</style></head><body><h1>Duo Link</h1>
 <p>Shows ` + htmlEscape(s.h.name()) + `'s screen on this car stereo.</p>
 <p><a href="/duolink.apk">Download Duo Link</a></p><ol>
 <li>Open the downloaded file to install it. If Android asks, allow installing apps from this browser (or the file manager).</li>
-<li>Open Duo Link. It finds the Cardputer on this network.</li>
-<li>Type the code the Cardputer shows.</li></ol></body></html>`
+<li>Open Duo Link. It finds the Cardputer on this Wi-Fi by itself.</li>
+<li>Type the code the Cardputer shows.</li></ol>
+<p style="font-size:16px;color:#aab">If Android says this Wi-Fi has no internet, choose to stay connected: Duo Link
+talks straight to the Cardputer. Duo Link works over Wi-Fi only; a USB cable just charges the Cardputer.</p></body></html>`
 	fmt.Fprintf(w, "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", len(page), page)
 }
 

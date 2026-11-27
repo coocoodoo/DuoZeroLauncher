@@ -308,6 +308,29 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.20.0)
+
+- Duo Link over the Cardputer's own Wi-Fi (`link_hotspot.go`): `startHotspot` (re)makes the
+  NetworkManager profile "Duo Link" (AP, band bg, WPA2/CCMP, PMF off for head units, ipv4
+  shared at `hotspotIP` 10.42.0.1/24, ipv6 off, autoconnect no) and brings it up; `stopHotspot`
+  takes it down so NM rejoins a saved network. Name `DuoLink-<host>` and an 8-digit password
+  are made once and kept in duolink.json (`SSID`, `Pass`). `Config.LinkWifi` (`link_wifi`):
+  `startLink` brings the hotspot up too (at boot as well); `App.linkWifiUp` tracks it; leaving
+  for the stock launcher takes it down. Needs `wifi.share.protected` in the polkit rule (Doctor
+  item 7 now checks it) and dnsmasq.
+- Set up a stereo (`link_setup.go`, `LinkSetup`): turns Duo Link and the Wi-Fi on, then three
+  steps (join the Wi-Fi, type 10.42.0.1:47140 in the stereo's browser, open Duo Link) that move
+  on by themselves: stations from `iw dev <wlan> station dump` (or /proc/net/arp), app
+  downloads (`linkServer.downloads`), a connected stereo. NEXT/BACK step by hand.
+- No Duo Link over USB: `viaUSB` (loopback = adbd's forward, or usb*/rndis*/ecm*/ncm* gadget
+  addresses) gets DENIED `linkNoUSB`; tests set `usbOK`. HELLO is now read before any refusal
+  (closing with it unread reset the connection on Windows and lost the reason). WELCOME carries
+  the Cardputer's `id`.
+- App 1.2: `AdbTransport`, `UsbReceiver` and the USB intent filter are gone. Sockets are made by
+  the Wi-Fi `Network` (`WifiNet`), so a stereo with mobile data still reaches 10.42.0.1. With
+  nothing heard it quietly tries the last address and 10.42.0.1 in turn, and connects by itself
+  to the only Cardputer heard the first time. Tokens are also kept by host:port.
+
 ## Local changes (0.19.0)
 
 - Duo Link step 2. Sound on the stereo (`link_audio.go`): a stereo whose app sends
@@ -316,7 +339,7 @@ then reboot, or ask the user to restart it.
   everything the Cardputer plays); silence isn't sent. Settings > Duo Link > Sound on the
   stereo (`Config.LinkAudio`, on by default). The app plays it with an AudioTrack, dropping
   backlog over ~0.3 s (`AudioPlayer.java`).
-- Over USB (`AdbTransport.java`, app 1.1): with the Cardputer's USB switch to the LEFT it is an
+- Over USB (`AdbTransport.java`, app 1.1; removed in 0.20.0, it kept dropping): with the Cardputer's USB switch to the LEFT it is an
   ADB device, so the app speaks ADB over the stereo's USB host port (CNXN, AUTH with its own RSA
   key: signature first, then the public key in adbd's format if asked, OPEN "tcp:47140", then
   WRTE/OKAY) and tunnels the same Duo Link protocol; nothing changes on the Cardputer, and the

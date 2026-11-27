@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- ADB interfaces: the Cardputer with its USB switch to the LEFT -->
-<resources>
-    <usb-device class="255" subclass="66" protocol="1" />
-</resources>
