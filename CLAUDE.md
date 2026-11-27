@@ -308,6 +308,25 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.19.0)
+
+- Duo Link step 2. Sound on the stereo (`link_audio.go`): a stereo whose app sends
+  `"audio": true` in HELLO gets lkAudio (0x87) messages, 20 ms of s16le stereo 44.1 kHz each,
+  captured from PipeWire's monitor of the speaker (`parec --device=@DEFAULT_MONITOR@`, so
+  everything the Cardputer plays); silence isn't sent. Settings > Duo Link > Sound on the
+  stereo (`Config.LinkAudio`, on by default). The app plays it with an AudioTrack, dropping
+  backlog over ~0.3 s (`AudioPlayer.java`).
+- Over USB (`AdbTransport.java`, app 1.1): with the Cardputer's USB switch to the LEFT it is an
+  ADB device, so the app speaks ADB over the stereo's USB host port (CNXN, AUTH with its own RSA
+  key: signature first, then the public key in adbd's format if asked, OPEN "tcp:47140", then
+  WRTE/OKAY) and tunnels the same Duo Link protocol; nothing changes on the Cardputer, and the
+  cable charges it. The app lists "Cardputer (USB)", asks Android for USB permission, opens
+  itself when the Cardputer is plugged in (`res/xml/device_filter.xml`), and pairs over USB
+  once (token "usb"). Untested on a real stereo: if adbd requires keys, the app's key must be
+  accepted on the Cardputer once.
+- The app is plain Java with top-level or static nested classes only (this SDK's d8 crashes on
+  inner and anonymous classes from newer javac). `link_audio_test.go` streams a tone.
+
 ## Local changes (0.18.0)
 
 - Sharing files between Cardputers (`share.go`): Files > MENU > Send to a Cardputer packs the

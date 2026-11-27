@@ -26,6 +26,13 @@ type linkTestClient struct {
 
 func dialLink(t *testing.T, s *linkServer, name, token string) *linkTestClient {
 	t.Helper()
+	lc := dialLinkRaw(t, s)
+	lc.sendJSON(lkHello, map[string]any{"name": name, "token": token, "v": 1})
+	return lc
+}
+
+func dialLinkRaw(t *testing.T, s *linkServer) *linkTestClient {
+	t.Helper()
 	c, err := net.Dial("tcp", "127.0.0.1:"+itoa(s.port()))
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +40,6 @@ func dialLink(t *testing.T, s *linkServer, name, token string) *linkTestClient {
 	c.SetDeadline(time.Now().Add(10 * time.Second))
 	lc := &linkTestClient{t: t, c: c, r: bufio.NewReader(c), px: make([]uint16, W*H)}
 	c.Write([]byte("DLK1"))
-	lc.sendJSON(lkHello, map[string]any{"name": name, "token": token, "v": 1})
 	return lc
 }
 
@@ -362,8 +368,14 @@ func TestDuoLinkScreens(t *testing.T) {
 	a.draw()
 	a.saveShot("link-settings")
 	l := a.top().(*RowList)
-	if l.Rows[0].Label != "Duo Link" || l.Rows[1].Value != "OFF" {
-		t.Fatalf("rows %+v %+v", l.Rows[0], l.Rows[1])
+	status := ""
+	for _, r := range l.Rows {
+		if r.Label == "Status" {
+			status = r.Value
+		}
+	}
+	if l.Rows[0].Label != "Duo Link" || status != "OFF" {
+		t.Fatalf("rows %+v, status %q", l.Rows[0], status)
 	}
 	a.push(&DocText{title: "DUO LINK", paras: linkHelp("192.168.1.20:47140")})
 	a.draw()

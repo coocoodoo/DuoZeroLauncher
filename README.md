@@ -114,6 +114,10 @@ keyboard for typing. It shows apps Duo starts, too.
    Duo Link app from there (the address is on the Duo Link page).
 3. Open Duo Link on the stereo, tap the Cardputer, and type the code it shows.
 
+The Cardputer's sound plays on the stereo too (Settings > Duo Link > Sound on the stereo). Over
+USB instead of Wi-Fi: set the Cardputer's USB switch to the LEFT and plug it into the stereo's
+USB port; Duo Link finds it, asks for USB access once, and the cable charges the Cardputer.
+
 The app's source is in `android/duolink` (`build.sh` builds it).
 
 ## Doctor: setting up a Cardputer

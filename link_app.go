@@ -119,6 +119,7 @@ func (a *App) newLink() *linkServer {
 				a.dirty = true
 			}
 		},
+		audio: func() bool { return a.cfg.LinkAudio },
 		changed: func() {
 			a.work <- func() {
 				if n := a.link.connected(); n != "" {
@@ -201,6 +202,11 @@ func linkPage(a *App) View {
 					a.link.shutdown()
 				}
 				l.Refresh(a, l)
+			}},
+			{Label: "Sound on the stereo", Kind: rowToggle, On: a.cfg.LinkAudio, Do: func(a *App, r *Row) {
+				a.cfg.LinkAudio = r.On
+				a.save()
+				a.notify("From the next time a stereo connects", false)
 			}},
 			{Label: "Status", Value: status},
 			{Label: "Address", Value: addr},

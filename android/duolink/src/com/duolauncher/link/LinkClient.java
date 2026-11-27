@@ -1,5 +1,9 @@
 package com.duolauncher.link;
 
+import android.content.Context;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
+
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -22,7 +26,7 @@ final class LinkClient {
     // client -> Cardputer
     static final int HELLO = 1, PAIR = 2, KEY = 3, TEXT = 4, PING = 5, ACK = 6;
     // Cardputer -> client
-    static final int WELCOME = 0x81, NEEDPAIR = 0x82, DENIED = 0x83, FRAME = 0x84, PONG = 0x85, WRONGCODE = 0x86;
+    static final int WELCOME = 0x81, NEEDPAIR = 0x82, DENIED = 0x83, FRAME = 0x84, PONG = 0x85, WRONGCODE = 0x86, AUDIO = 0x87;
 
     interface Listener {
         void onNeedPair(String device, int triesLeft, boolean wrong);
@@ -42,6 +46,12 @@ final class LinkClient {
     private final String token, myName;
     private final LinkedBlockingQueue<byte[]> out = new LinkedBlockingQueue<>();
     private volatile Socket sock;
+    private volatile AdbTransport usbLink;
+    private final AudioPlayer audio = new AudioPlayer();
+    // over USB instead of the network (the Cardputer's ADB, "tcp:47140")
+    Context usbCtx;
+    UsbManager usbManager;
+    UsbDevice usbDevice;
     private volatile boolean closed;
     private volatile boolean denied;
 
@@ -62,6 +72,9 @@ final class LinkClient {
 
     void close() {
         closed = true;
+        audio.stop();
+        AdbTransport u = usbLink;
+        if (u != null) u.close();
         Socket s = sock;
         if (s != null) {
             try {
@@ -122,12 +135,23 @@ final class LinkClient {
     private void readLoop() {
         String why = "Connection closed";
         try {
-            Socket s = new Socket();
-            sock = s;
-            s.setTcpNoDelay(true);
-            s.connect(new InetSocketAddress(host, port), 5000);
-            s.setSoTimeout(15000); // the Cardputer sends at least a PONG every few seconds
-            DataOutputStream o = new DataOutputStream(s.getOutputStream());
+            java.io.InputStream rawIn;
+            java.io.OutputStream rawOut;
+            if (usbDevice != null) {
+                AdbTransport u = AdbTransport.open(usbCtx, usbManager, usbDevice, "tcp:" + port);
+                usbLink = u;
+                rawIn = u.input;
+                rawOut = u.output;
+            } else {
+                Socket s = new Socket();
+                sock = s;
+                s.setTcpNoDelay(true);
+                s.connect(new InetSocketAddress(host, port), 5000);
+                s.setSoTimeout(15000); // the Cardputer sends at least a PONG every few seconds
+                rawIn = s.getInputStream();
+                rawOut = s.getOutputStream();
+            }
+            DataOutputStream o = new DataOutputStream(new java.io.BufferedOutputStream(rawOut, 65536));
             o.write("DLK1".getBytes(StandardCharsets.US_ASCII));
             o.flush();
             Thread wt = new Thread(() -> writeLoop(o), "duolink-write");
@@ -136,10 +160,11 @@ final class LinkClient {
             JSONObject hello = new JSONObject();
             hello.put("name", myName);
             hello.put("token", token == null ? "" : token);
-            hello.put("v", 1);
+            hello.put("v", 2);
+            hello.put("audio", true);
             send(HELLO, hello.toString().getBytes(StandardCharsets.UTF_8));
 
-            DataInputStream in = new DataInputStream(new BufferedInputStream(s.getInputStream(), 65536));
+            DataInputStream in = new DataInputStream(new BufferedInputStream(rawIn, 65536));
             Inflater inf = new Inflater();
             byte[] tiles = new byte[0];
             long lastPing = System.currentTimeMillis();
@@ -198,6 +223,9 @@ final class LinkClient {
                         listener.onFrame();
                         break;
                     }
+                    case AUDIO:
+                        audio.feed(p);
+                        break;
                     default: // PONG and anything newer
                         break;
                 }

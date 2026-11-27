@@ -74,6 +74,7 @@ const (
 	lkFrame
 	lkPong
 	lkWrongCode
+	lkAudio // [s16le stereo 44.1 kHz]: what the Cardputer is playing, for stereos that asked
 )
 
 // linkHooks connect the server to the rest of Duo (and to fakes in tests).
@@ -84,6 +85,7 @@ type linkHooks struct {
 	pair    func(stereo, code string, cancel func()) // show the pairing code
 	paired  func()                                   // pairing over (either way): hide the code
 	changed func()                                   // a stereo connected or left
+	audio   func() bool                              // send the Cardputer's sound to stereos that ask
 }
 
 type linkStore struct {
@@ -353,6 +355,7 @@ func (s *linkServer) serve(c net.Conn) {
 	var hello struct {
 		Name  string `json:"name"`
 		Token string `json:"token"`
+		Audio bool   `json:"audio"` // the app can play the Cardputer's sound
 	}
 	json.Unmarshal(p, &hello)
 	lc.name = cleanName(hello.Name)
@@ -394,6 +397,9 @@ func (s *linkServer) serve(c net.Conn) {
 	}
 	s.h.changed()
 	go lc.stream()
+	if hello.Audio && s.h.audio != nil && s.h.audio() {
+		go lc.streamAudio()
+	}
 	for {
 		c.SetReadDeadline(time.Now().Add(20 * time.Second))
 		typ, p, err := lc.read()

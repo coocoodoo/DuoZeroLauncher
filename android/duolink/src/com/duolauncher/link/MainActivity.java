@@ -2,7 +2,13 @@ package com.duolauncher.link;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,6 +21,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,6 +38,11 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
     private boolean userLeft; // the user chose Leave: don't reconnect on our own
     private long lastTry;
     private AlertDialog dialog;
+    private UsbManager usb;
+    private boolean usbAsked; // permission asked for the Cardputer plugged in now
+    private List<Discovery.Device> netDevices = new ArrayList<>();
+    private UsbReceiver usbReceiver;
+    static final String USB_PERMISSION = "com.duolauncher.link.USB_PERMISSION";
 
     @Override
     protected void onCreate(Bundle b) {
@@ -41,7 +53,78 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
         setContentView(view);
         immersive();
         discovery = new Discovery(this, this);
+        usb = (UsbManager) getSystemService(Context.USB_SERVICE);
+        usbReceiver = new UsbReceiver(this);
+        IntentFilter f = new IntentFilter(USB_PERMISSION);
+        f.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(usbReceiver, f, Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(usbReceiver, f);
         showSearching();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(intent.getAction())) {
+            usbAsked = false;
+            checkUsb();
+        }
+    }
+
+    /** A Cardputer plugged in over USB (USB switch to the LEFT): list it, and connect. */
+    void checkUsb() {
+        UsbDevice d = AdbTransport.findCardputer(usb);
+        refreshDevices();
+        if (d == null || client != null || userLeft || dialog != null) return;
+        if (usb.hasPermission(d)) {
+            connectUsb(d);
+        } else if (!usbAsked) {
+            usbAsked = true;
+            Intent i = new Intent(USB_PERMISSION).setPackage(getPackageName());
+            int flags = Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0;
+            usb.requestPermission(d, PendingIntent.getBroadcast(this, 0, i, flags));
+        }
+    }
+
+    void onUsbIntent(Intent intent) {
+        if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(intent.getAction())) {
+            usbAsked = false;
+            LinkClient c = client;
+            if (c != null && c.usbDevice != null) c.close();
+            refreshDevices();
+            return;
+        }
+        UsbDevice d = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+        if (d != null && intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) connectUsb(d);
+        else view.status = "USB: permission wasn't given. Unplug and plug the Cardputer in again to be asked again.";
+        view.invalidate();
+    }
+
+    private void connectUsb(UsbDevice d) {
+        Discovery.Device dev = usbEntry();
+        connectTo(dev);
+        LinkClient c = client;
+        if (c != null && c.usbDevice == null) { // connectTo made a network client: make it USB
+            c.close();
+        }
+    }
+
+    private Discovery.Device usbEntry() {
+        Discovery.Device d = new Discovery.Device();
+        d.id = "usb";
+        d.host = "usb";
+        d.port = 47140;
+        d.name = "Cardputer (USB)";
+        d.seen = System.currentTimeMillis();
+        return d;
+    }
+
+    private void refreshDevices() {
+        List<Discovery.Device> all = new ArrayList<>();
+        if (AdbTransport.findCardputer(usb) != null) all.add(usbEntry());
+        all.addAll(netDevices);
+        view.devices = all;
+        if (client == null) view.invalidate();
     }
 
     @Override
@@ -50,6 +133,7 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
         immersive();
         discovery.start();
         ui.post(retry);
+        checkUsb();
     }
 
     @Override
@@ -65,6 +149,10 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        try {
+            unregisterReceiver(usbReceiver);
+        } catch (RuntimeException ignored) {
+        }
         LinkClient c = client;
         if (c != null) c.close();
     }
@@ -87,7 +175,8 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
         view.title = "Duo Link";
         view.status = "Looking for your Cardputer on this network...\n"
                 + "On the Cardputer: Settings > Launcher > Duo Link, turn it on.\n"
-                + "Both must be on the same Wi-Fi (this stereo's hotspot works too).";
+                + "Same Wi-Fi (this stereo's hotspot works), or a USB cable\n"
+                + "with the Cardputer's USB switch to the LEFT.";
         String last = prefs.getString("last_name", "");
         if (!last.isEmpty() && !userLeft) view.status += "\nWill reconnect to " + last + " when it shows up.";
         view.devices = discovery == null ? view.devices : discovery.devices();
@@ -104,6 +193,10 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
             if (client != null || userLeft || dialog != null) return;
             String id = prefs.getString("last_id", "");
             if (id.isEmpty()) return;
+            if (id.equals("usb")) {
+                checkUsb();
+                return;
+            }
             for (Discovery.Device d : discovery.devices()) {
                 if (d.id.equals(id)) {
                     connectTo(d);
@@ -140,6 +233,18 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
         view.invalidate();
         String me = Build.MODEL == null || Build.MODEL.isEmpty() ? "Car stereo" : Build.MODEL;
         LinkClient c = new LinkClient(d.host, d.port, d.id, token, me, this);
+        if ("usb".equals(d.id)) {
+            UsbDevice u = AdbTransport.findCardputer(usb);
+            if (u == null || !usb.hasPermission(u)) {
+                view.status = "Plug the Cardputer in (USB switch to the LEFT), then allow USB access.";
+                view.invalidate();
+                checkUsb();
+                return;
+            }
+            c.usbCtx = getApplicationContext();
+            c.usbManager = usb;
+            c.usbDevice = u;
+        }
         client = c;
         c.start();
     }
@@ -270,8 +375,8 @@ public final class MainActivity extends Activity implements ScreenView.Host, Lin
     @Override
     public void onDevices(List<Discovery.Device> devices) {
         ui.post(() -> {
-            view.devices = devices;
-            if (client == null) view.invalidate();
+            netDevices = devices;
+            refreshDevices();
         });
     }
 
