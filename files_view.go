@@ -785,7 +785,29 @@ func (v *FileBrowser) create(a *App, folder bool) {
 			return
 		}
 		v.reload(p)
+		if !folder {
+			v.edit(a, p)
+		}
 	}))
+}
+
+// editable: small enough, and not something that's clearly not text.
+func editable(e fileEntry) bool {
+	if e.dir || e.size > edMaxSize {
+		return false
+	}
+	switch e.kind {
+	case kImage, kAudio, kVideo, kArchive, kPS1, kDoc:
+		return false
+	}
+	return true
+}
+
+func (v *FileBrowser) edit(a *App, p string) {
+	ed := newEditor(p)
+	ed.onSaved = func() { v.stale = true }
+	a.snd.Play("open")
+	a.push(ed)
 }
 
 func (v *FileBrowser) compress(a *App) {
@@ -923,6 +945,7 @@ func (v *FileBrowser) menu(a *App) {
 	}
 	add("Open", "", c == nil, func(a *App) { v.open(a, *c) })
 	add("Open with...", "", !isFile, func(a *App) { v.openWith(a, *c) })
+	add("Edit", "", !isFile || !editable(*c), func(a *App) { v.edit(a, c.path) })
 	add("Copy", countOf(t), len(t) == 0, func(a *App) { v.copy(a, false) })
 	add("Cut", countOf(t), len(t) == 0, func(a *App) { v.copy(a, true) })
 	add("Paste", countOf(filesClip.paths), len(filesClip.paths) == 0 || v.results != nil, func(a *App) { v.paste(a) })
@@ -996,6 +1019,7 @@ func (v *FileBrowser) openWith(a *App, e fileEntry) {
 		{"Music", "", !isAudio(e.name), func(a *App) { openInMusic(a, e.path) }},
 		{"PS1", "", e.kind != kPS1 || !ps1Installed(), func(a *App) { openInPS1(a, e.path) }},
 		{"Text viewer", "", false, func(a *App) { openText(a, e.path, false) }},
+		{"Text editor", "", !editable(e), func(a *App) { v.edit(a, e.path) }},
 		{"Hex viewer", "", false, func(a *App) { openText(a, e.path, true) }},
 		{"Run in terminal", "", !(e.kind == kExec || isScript(e.name)), func(a *App) { runInTerminal(a, e.path) }},
 		{"Extract here", "", !isArchive(e.name), func(a *App) { v.extract(a, e.path) }},
@@ -1330,6 +1354,8 @@ func (v *TextFileView) Key(a *App, k cp0.Key) {
 		} else {
 			v.top = last
 		}
+	case (k.Ch == 'e' || k.Ch == 'E') && !v.hex && v.err == "":
+		a.replace(newEditor(v.path))
 	}
 }
 

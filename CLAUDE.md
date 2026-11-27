@@ -308,6 +308,18 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.15.0)
+
+- Text editor (`editor.go`, `Editor`, a TextView so letters type; the arrows are the Fn
+  arrows): Enter keeps the indent, Tab indents with the file's own unit (tab or 4 spaces),
+  Backspace/Del join lines; Ctrl+S save (atomic, keeps the mode), Ctrl+Z/Y undo/redo
+  (snapshots; a run of typing or of deleting is one step), Ctrl+F/N find, Ctrl+G go to line,
+  Ctrl+C/X/V/D line copy/cut/paste/duplicate, Ctrl+A/E line start/end, Home/End/PgUp/PgDn;
+  Esc asks Save and close / Close without saving / Keep editing. Files keep their tabs, CRLF
+  and final newline. Refuses binary files and files over 1 MB. Opened from Files (MENU >
+  Edit, Open with > Text editor, E in the text viewer; a new text file opens in it).
+  `editor_test.go`.
+
 ## Local changes (0.14.0)
 
 - Settings has a second page (`settings2.go`, `tilesPerPage` 12): Duo Link, Music (volume,
