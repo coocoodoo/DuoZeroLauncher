@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.21.1"
+const version = "0.21.2"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -149,6 +149,7 @@ func main() {
 	go a.statusLoop()
 	a.lastKey = time.Now()
 	a.stack = []View{newHome(a)}
+	a.lockAtStart()
 	if a.cfg.Jingle && !a.sim {
 		a.snd.Play(a.startupSound())
 	}
@@ -457,6 +458,15 @@ func (a *App) sleepNow() {
 		}
 	}
 	a.screenOff()
+}
+
+// lockAtStart: with a PIN set, Duo starts locked. It used to lock only when the screen woke or
+// Tab was held, so turning the Cardputer on (or Duo restarting after a crash or an update) went
+// straight to the home screen, PIN or not. No lock sound: the start-up chime is playing.
+func (a *App) lockAtStart() {
+	if a.cfg.PIN != "" && a.lockIndex() < 0 {
+		a.stack = append(a.stack, &Lock{})
+	}
 }
 
 // lock shows the lock screen and says whether it did. A half-typed box on top (the PIN, a

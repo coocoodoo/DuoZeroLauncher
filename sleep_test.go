@@ -118,3 +118,38 @@ func TestLockNeverStacks(t *testing.T) {
 		t.Fatalf("unlocked to %T, want the home screen", a.top())
 	}
 }
+
+// Turning the Cardputer on asks for the PIN: Duo starts locked when one is set (whatever "Lock
+// when it wakes" says), nothing gets past the lock screen without it, and with no PIN it starts
+// on the home screen.
+func TestLockedAtStart(t *testing.T) {
+	a := testApp(t)
+	a.lockAtStart()
+	if len(a.stack) != 1 {
+		t.Fatal("no PIN: Duo should start on the home screen")
+	}
+	a.cfg.PIN, a.cfg.LockOnWake = "1234", false
+	a.lockAtStart()
+	a.lockAtStart()
+	if len(a.stack) != 2 || a.lockIndex() != 1 {
+		t.Fatalf("with a PIN Duo should start locked, once: %d screens", len(a.stack))
+	}
+	for _, name := range []string{"ESC", "SPACE", "UP", "DOWN", "LEFT", "RIGHT", "BACKSPACE"} {
+		a.handle(cp0.Key{Name: name})
+	}
+	for code := 5; code <= 9; code++ { // the key bar's 4-8
+		a.handle(cp0.Key{Code: code})
+	}
+	if a.lockIndex() != 1 || len(a.stack) != 2 {
+		t.Fatal("a key got past the lock screen")
+	}
+	a.handle(cp0.Key{Name: "ENTER"})
+	in, ok := a.top().(*Input)
+	if !ok {
+		t.Fatalf("Enter should ask for the PIN, got %T", a.top())
+	}
+	in.done("0000")
+	if a.lockIndex() < 0 {
+		t.Fatal("a wrong PIN unlocked it")
+	}
+}

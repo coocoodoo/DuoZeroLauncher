@@ -308,6 +308,15 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.21.2)
+
+- With a PIN set, Duo starts locked (`App.lockAtStart`, called in `main` right after the home
+  screen is made). Before, only waking the screen ("Lock when it wakes") and holding Tab locked:
+  a fresh boot, or Duo restarting after a crash or an update, opened the home screen without
+  the PIN (the user: "a safety issue"). It doesn't depend on "Lock when it wakes".
+  `TestLockedAtStart` (sleep_test.go). The PIN only guards Duo's screen: SSH and the stock
+  launcher (after 3 failed starts) don't ask for it.
+
 ## Local changes (0.21.1)
 
 A review pass for speed and bugs (profiled with `go test -bench Draw -cpuprofile`).
