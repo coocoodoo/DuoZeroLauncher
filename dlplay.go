@@ -269,16 +269,24 @@ func serveOffer(o dlOffer, file, magic string, port int, sent func(to string)) (
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(d.offer)
 	})
-	var tries sync.Map
+	// wrong codes per address. Counted under a lock before the code is looked at: requests sent
+	// side by side used to all get past the limit before any of them was counted
+	var triesMu sync.Mutex
+	tries := map[string]int{}
 	mux.HandleFunc("/get", func(w http.ResponseWriter, r *http.Request) {
 		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		if n, _ := tries.LoadOrStore(ip, new(int)); *(n.(*int)) >= 5 {
+		good := r.URL.Query().Get("code") == d.code
+		triesMu.Lock()
+		refused := tries[ip] >= 5
+		if !refused && !good {
+			tries[ip]++
+		}
+		triesMu.Unlock()
+		if refused {
 			http.Error(w, "too many wrong codes", http.StatusTooManyRequests)
 			return
 		}
-		if r.URL.Query().Get("code") != d.code {
-			n, _ := tries.Load(ip)
-			*(n.(*int))++
+		if !good {
 			time.Sleep(500 * time.Millisecond)
 			http.Error(w, "wrong code", http.StatusForbidden)
 			return
@@ -450,7 +458,11 @@ func dlFetch(o dlOffer, code string, progress func(done int64)) (string, error) 
 	for {
 		n, rerr := body.Read(buf)
 		if n > 0 {
-			f.Write(buf[:n])
+			if _, werr := f.Write(buf[:n]); werr != nil { // (a full card: the checksum below only covers what arrived)
+				f.Close()
+				os.Remove(f.Name())
+				return "", fmt.Errorf("can't save the download: %v", errors.Unwrap(werr))
+			}
 			h.Write(buf[:n])
 			done += int64(n)
 			if progress != nil {

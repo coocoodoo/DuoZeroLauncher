@@ -239,6 +239,7 @@ func (v *VideoView) play(t float64) {
 // pictures reads frames and shows each when its time comes.
 func (v *VideoView) pictures(pb *videoPlayback, out io.Reader, fps float64, w, h int) {
 	raw := make([]byte, w*h*2)
+	var spare []uint16 // the frame before last, used again (30 new 100 KB frames a second kept the collector busy)
 	for n := 0; ; n++ {
 		if _, err := io.ReadFull(out, raw); err != nil {
 			pb.ended.Store(true)
@@ -257,12 +258,15 @@ func (v *VideoView) pictures(pb *videoPlayback, out io.Reader, fps float64, w, h
 			}
 			time.Sleep(time.Duration(min(due-el, 0.02) * float64(time.Second)))
 		}
-		px := make([]uint16, w*h)
+		px := spare
+		if len(px) != w*h {
+			px = make([]uint16, w*h)
+		}
 		for i := range px {
 			px[i] = binary.LittleEndian.Uint16(raw[i*2:])
 		}
 		v.frameMu.Lock()
-		v.frame = px
+		v.frame, spare = px, v.frame // (Draw copies the frame while it holds the lock)
 		v.frameMu.Unlock()
 		pb.shownAt.Add(1)
 	}
@@ -293,6 +297,7 @@ func (v *VideoView) sound(pb *videoPlayback, ar *os.File) {
 	}
 	defer func() { in.Close(); sink.Process.Kill(); sink.Wait() }()
 	buf := make([]byte, 8192)
+	have := 0 // bytes of a sample cut in two by a read, kept for the next one
 	for {
 		select {
 		case <-pb.stop:
@@ -306,17 +311,22 @@ func (v *VideoView) sound(pb *videoPlayback, ar *os.File) {
 			case <-time.After(30 * time.Millisecond):
 			}
 		}
-		n, err := ar.Read(buf)
-		if n > 0 {
+		n, err := ar.Read(buf[have:])
+		// only whole left+right pairs go on: a read that ended inside a sample would shift every
+		// later one by a byte (noise, at any volume below full)
+		total := have + n
+		whole := total / 4 * 4
+		if whole > 0 {
 			g := int(v.vol.Load())
-			for i := 0; i+1 < n; i += 2 {
+			for i := 0; i < whole; i += 2 {
 				s := int(int16(binary.LittleEndian.Uint16(buf[i:])))
 				binary.LittleEndian.PutUint16(buf[i:], uint16(int16(max(-32768, min(32767, s*g/100)))))
 			}
-			if _, err := in.Write(buf[:n]); err != nil {
+			if _, err := in.Write(buf[:whole]); err != nil {
 				return
 			}
 		}
+		have = copy(buf, buf[whole:total])
 		if err != nil {
 			return
 		}
@@ -424,13 +434,15 @@ func (v *VideoView) Draw(a *App) {
 	}
 	v.frameMu.Lock()
 	fr := v.frame
-	v.frameMu.Unlock()
-	if fr != nil && len(fr) == v.fw*v.fh {
+	shown := fr != nil && len(fr) == v.fw*v.fh
+	if shown {
 		ox, oy := (W-v.fw)/2, (H-v.fh)/2
 		for y := 0; y < v.fh; y++ {
 			copy(g.s.Px[(oy+y)*W+ox:(oy+y)*W+ox+v.fw], fr[y*v.fw:(y+1)*v.fw])
 		}
-	} else if v.pb != nil && !v.pb.ended.Load() {
+	}
+	v.frameMu.Unlock()
+	if !shown && v.pb != nil && !v.pb.ended.Load() {
 		g.dsLoading(W/2-14, H/2-20, a.t)
 	}
 	if v.pb != nil && v.pb.ended.Load() { // the end: stop the clock there and show the bar

@@ -475,3 +475,43 @@ func TestDuoLinkSetupScreens(t *testing.T) {
 		t.Fatal("Esc should close the steps")
 	}
 }
+
+// Wrong codes are counted per address, not per connection: reconnecting for a new code doesn't
+// give five more guesses.
+func TestDuoLinkWrongCodesAcrossConnections(t *testing.T) {
+	s, _ := newTestLink(t)
+	for i := 0; i < linkTries; i++ {
+		waitNoPairing(s)
+		c := dialLink(t, s, "Radio", "")
+		if typ, m := c.next(); typ != lkNeedPair {
+			t.Fatalf("connection %d: %#x %v", i, typ, m)
+		}
+		c.sendJSON(lkPair, map[string]string{"code": "nope"})
+		want := byte(lkWrongCode)
+		if i == linkTries-1 {
+			want = lkDenied
+		}
+		if typ, m := c.next(); typ != want {
+			t.Fatalf("wrong code %d: got %#x %v, want %#x", i+1, typ, m, want)
+		}
+		c.c.Close()
+	}
+	c := dialLink(t, s, "Radio", "")
+	if typ, m := c.next(); typ != lkDenied || !strings.Contains(m["reason"].(string), "Wait") {
+		t.Fatalf("the address should wait now: %#x %v", typ, m)
+	}
+}
+
+// waitNoPairing waits until the last connection's pairing is over (the server notices a closed
+// connection a moment later).
+func waitNoPairing(s *linkServer) {
+	for i := 0; i < 250; i++ {
+		s.mu.Lock()
+		busy := s.pairing != nil
+		s.mu.Unlock()
+		if !busy {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}

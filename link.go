@@ -147,6 +147,7 @@ type linkServer struct {
 	client   *linkConn
 	pairing  *linkConn
 	blocked  map[string]time.Time
+	wrong    map[string]linkWrong // wrong codes per address, across connections
 	stop     chan struct{}
 	running  bool
 	announce bool
@@ -154,6 +155,31 @@ type linkServer struct {
 	usbOK    bool          // tests: allow links from loopback (on the device that is adbd over USB)
 
 	downloads atomic.Int32 // the app was downloaded this many times (the setup screen watches it)
+}
+
+// linkWrong counts an address's wrong pairing codes. The tries used to be counted per connection,
+// so reconnecting gave five more guesses at a new code each time, with no wait.
+type linkWrong struct {
+	n    int
+	last time.Time
+}
+
+// wrongCode notes a wrong code from ip and says whether the address must now wait.
+func (s *linkServer) wrongCode(ip string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	w := s.wrong[ip]
+	if time.Since(w.last) > 10*time.Minute {
+		w.n = 0
+	}
+	w.n, w.last = w.n+1, time.Now()
+	if w.n >= linkTries {
+		delete(s.wrong, ip)
+		s.blocked[ip] = time.Now().Add(time.Minute)
+		return true
+	}
+	s.wrong[ip] = w
+	return false
 }
 
 func (s *linkServer) apkDownloads() int { return int(s.downloads.Load()) }
@@ -193,8 +219,9 @@ func isUSBIface(name string) bool {
 }
 
 func newLinkServer(h linkHooks) *linkServer {
-	return &linkServer{h: h, addr: fmt.Sprintf(":%d", linkPort), blocked: map[string]time.Time{}, announce: true,
-		alive: linkKeepAlive}
+	return &linkServer{h: h, addr: fmt.Sprintf(":%d", linkPort), blocked: map[string]time.Time{}, wrong: map[string]linkWrong{},
+		announce: true,
+		alive:    linkKeepAlive}
 }
 
 func (s *linkServer) start() error {
@@ -348,7 +375,8 @@ func (lc *linkConn) send(typ byte, payload []byte) error {
 	hdr := []byte{typ, 0, 0, 0, 0}
 	binary.BigEndian.PutUint32(hdr[1:], uint32(len(payload)))
 	lc.c.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	if _, err := lc.c.Write(append(hdr, payload...)); err != nil {
+	bufs := net.Buffers{hdr, payload} // one writev: the frame isn't copied first
+	if _, err := bufs.WriteTo(lc.c); err != nil {
 		lc.close()
 		return err
 	}
@@ -588,6 +616,7 @@ func (s *linkServer) pair(lc *linkConn) (string, error) {
 			if strings.TrimSpace(pr.Code) == lc.code {
 				token := randHex(16)
 				s.mu.Lock()
+				delete(s.wrong, lc.ip)
 				s.store.Stereos = append(s.store.Stereos, linkStereo{Name: lc.name, Hash: tokenHash(token),
 					Added: time.Now().Format(time.RFC3339)})
 				s.store.save()
@@ -595,10 +624,7 @@ func (s *linkServer) pair(lc *linkConn) (string, error) {
 				return token, nil
 			}
 			lc.tries--
-			if lc.tries <= 0 {
-				s.mu.Lock()
-				s.blocked[lc.ip] = time.Now().Add(time.Minute)
-				s.mu.Unlock()
+			if s.wrongCode(lc.ip) || lc.tries <= 0 {
 				return deny("Too many wrong codes.")
 			}
 			if lc.sendJSON(lkWrongCode, map[string]any{"name": s.h.name(), "left": lc.tries}) != nil {

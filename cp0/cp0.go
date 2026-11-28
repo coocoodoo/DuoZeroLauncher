@@ -110,6 +110,9 @@ func (s *Screen) Capture() ([]uint16, error) {
 	return px, s.CaptureInto(px, nil)
 }
 
+// CaptureBuffer makes a read buffer for CaptureInto to reuse.
+func (s *Screen) CaptureBuffer() []byte { return make([]byte, max(s.stride, W*2)*H) }
+
 // CaptureInto is Capture into px (W*H), reusing raw (stride*H bytes, or nil) as the read buffer.
 func (s *Screen) CaptureInto(px []uint16, raw []byte) error {
 	s.mu.Lock()

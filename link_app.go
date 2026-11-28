@@ -94,9 +94,10 @@ func (a *App) linkKey(code int, down bool) {
 }
 
 func (a *App) newLink() *linkServer {
+	raw := a.scr.CaptureBuffer() // reused for every frame, 25 a second (CaptureInto holds the screen's lock while using it)
 	return newLinkServer(linkHooks{
 		name:    func() string { return hostname() },
-		capture: func(px []uint16) error { return a.scr.CaptureInto(px, nil) },
+		capture: func(px []uint16) error { return a.scr.CaptureInto(px, raw) },
 		key:     a.linkKey,
 		pair: func(stereo, code string, cancel func()) {
 			a.work <- func() {

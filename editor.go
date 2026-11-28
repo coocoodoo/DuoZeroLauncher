@@ -106,14 +106,26 @@ func (v *Editor) save() error {
 	if v.err != "" {
 		return errors.New(v.err)
 	}
-	tmp := v.path + ".duo-save"
-	if err := os.WriteFile(tmp, []byte(v.text()), v.mode); err != nil {
-		return err
+	// a link is saved through to the file it points at (renaming over the link would replace it
+	// with a plain file, and the real file would keep the old text)
+	path := v.path
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
 	}
-	os.Chmod(tmp, v.mode)
-	if err := os.Rename(tmp, v.path); err != nil {
+	tmp := path + ".duo-save"
+	text := []byte(v.text())
+	if err := os.WriteFile(tmp, text, v.mode); err != nil {
 		os.Remove(tmp)
-		return err
+		// the folder won't take a new file (read-only folder, full card...): write the file itself
+		if werr := os.WriteFile(path, text, v.mode); werr != nil {
+			return werr
+		}
+	} else {
+		os.Chmod(tmp, v.mode)
+		if err := os.Rename(tmp, path); err != nil {
+			os.Remove(tmp)
+			return err
+		}
 	}
 	v.modified = false
 	if v.onSaved != nil {
@@ -142,14 +154,27 @@ func (v *Editor) restore(s []string) {
 	v.clamp()
 }
 
+// undoSteps is how many steps back are kept: 200, fewer for big files. Every step is a copy of
+// the whole text, so 200 of a 1 MB file would be 200 MB on a Cardputer with 414 MB; the copies
+// are kept to about 8 MB together.
+func (v *Editor) undoSteps() int {
+	size := 1
+	for _, l := range v.lines {
+		size += len(l) + 16
+	}
+	return max(3, min(200, undoBudget/size))
+}
+
+const undoBudget = 8 << 20
+
 // edit is called before every change. Typing in one go (no pause over a second), or deleting in
 // one go, is one step to undo; switching between them, or anything else, starts a new step.
 func (v *Editor) edit(kind string) {
 	typing := kind != ""
 	if !typing || kind != v.lastKind || time.Since(v.lastEdit) > time.Second || len(v.undo) == 0 {
 		v.undo = append(v.undo, v.snapshot())
-		if len(v.undo) > 200 {
-			v.undo = v.undo[1:]
+		if len(v.undo) > v.undoSteps() {
+			v.undo = append([][]string(nil), v.undo[len(v.undo)-v.undoSteps():]...)
 		}
 	}
 	v.lastKind = kind

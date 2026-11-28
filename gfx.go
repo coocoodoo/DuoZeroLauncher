@@ -32,7 +32,12 @@ func from565(v uint16) RGB {
 }
 
 func mix(a, b RGB, t float64) RGB {
-	t = math.Max(0, math.Min(1, t))
+	if t <= 0 {
+		return a
+	}
+	if t >= 1 {
+		return b
+	}
 	f := func(x, y uint8) uint8 { return uint8(float64(x) + (float64(y)-float64(x))*t + 0.5) }
 	return RGB{f(a.R, b.R), f(a.G, b.G), f(a.B, b.B)}
 }
@@ -178,10 +183,30 @@ func smoothstep(t float64) float64 {
 }
 
 func (g *G) shade(x, y, w, h int, c RGB, a float64) {
+	if a <= 0 {
+		return
+	}
+	if a >= 1 {
+		g.rect(x, y, w, h, c)
+		return
+	}
+	// one colour at one strength over everything: what each channel value turns into is worked
+	// out once (32 + 64 + 32 values), not for every pixel
+	var lr, lb [32]uint16
+	var lg [64]uint16
+	for v := range lr {
+		p := from565(uint16(v)<<11 | uint16(v))
+		m := mix(p, c, a)
+		lr[v], lb[v] = uint16(m.R>>3)<<11, uint16(m.B>>3)
+	}
+	for v := range lg {
+		lg[v] = uint16(mix(from565(uint16(v)<<5), c, a).G>>2) << 5
+	}
 	r := image.Rect(x, y, x+w, y+h).Intersect(g.clip)
 	for yy := r.Min.Y; yy < r.Max.Y; yy++ {
-		for xx := r.Min.X; xx < r.Max.X; xx++ {
-			g.blend(xx, yy, c, a)
+		row := g.s.Px[yy*W+r.Min.X : yy*W+r.Max.X]
+		for i, p := range row {
+			row[i] = lr[p>>11] | lg[(p>>5)&63] | lb[p&31]
 		}
 	}
 }

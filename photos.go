@@ -305,6 +305,14 @@ func rotate90(m *image.RGBA) *image.RGBA { return orient(m, 6) }
 func decodeAny(path string, data []byte) (image.Image, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	if goImageExts[ext] {
+		// the header first: a small file can claim to be 30000 x 30000, and decoding it here would
+		// take gigabytes and end Duo. ffmpeg (its own process) scales such a picture down, or fails
+		if cfg, _, cerr := image.DecodeConfig(bytes.NewReader(data)); cerr == nil && !photoFits(cfg.Width, cfg.Height) {
+			if ext == ".gif" {
+				return nil, errors.New("this picture is too big to open")
+			}
+			return ffmpegDecode(path)
+		}
 		m, _, err := image.Decode(bytes.NewReader(data))
 		if err == nil {
 			return m, nil
@@ -317,6 +325,60 @@ func decodeAny(path string, data []byte) (image.Image, error) {
 		return nil, err
 	}
 	return ffmpegDecode(path)
+}
+
+// photoFits: a picture this size can be decoded in Duo's own memory (48 megapixels: up to
+// ~190 MB for a moment as RGBA, ~70 MB as a JPEG).
+func photoFits(w, h int) bool { return w > 0 && h > 0 && w <= 1<<15 && h <= 1<<15 && w*h <= 48_000_000 }
+
+// gifFrames counts a GIF's frames by walking its blocks, without decoding anything (0 if it
+// isn't one). gif.DecodeAll reads every frame before anything can be checked, and a few
+// megabytes of GIF can hold thousands of large frames.
+func gifFrames(d []byte) int {
+	if len(d) < 13 || (string(d[:6]) != "GIF87a" && string(d[:6]) != "GIF89a") {
+		return 0
+	}
+	i := 13
+	if d[10]&0x80 != 0 {
+		i += 3 << (d[10]&7 + 1)
+	}
+	skipBlocks := func() bool {
+		for i < len(d) {
+			n := int(d[i])
+			i += 1 + n
+			if n == 0 {
+				return true
+			}
+		}
+		return false
+	}
+	frames := 0
+	for i < len(d) {
+		switch d[i] {
+		case 0x2c: // an image
+			if i+10 > len(d) {
+				return frames
+			}
+			frames++
+			flags := d[i+9]
+			i += 10
+			if flags&0x80 != 0 {
+				i += 3 << (flags&7 + 1)
+			}
+			i++ // LZW code size
+			if !skipBlocks() {
+				return frames
+			}
+		case 0x21: // an extension
+			i += 2
+			if !skipBlocks() {
+				return frames
+			}
+		default: // the trailer, or rubbish
+			return frames
+		}
+	}
+	return frames
 }
 
 func ffmpegDecode(path string) (image.Image, error) {
@@ -351,9 +413,18 @@ func loadPhoto(path string) (*photo, error) {
 		return nil, err
 	}
 	p := &photo{size: fi.Size(), modified: fi.ModTime(), exif: readExif(data)}
+	// an animation is decoded whole, so only when its frames fit in memory (checked before
+	// decoding: 20 million pixels over all frames); a bigger one shows its first frame
+	animated := false
 	if strings.EqualFold(filepath.Ext(path), ".gif") {
+		if cfg, err := gif.DecodeConfig(bytes.NewReader(data)); err == nil && photoFits(cfg.Width, cfg.Height) {
+			n := gifFrames(data)
+			animated = n > 1 && cfg.Width*cfg.Height*n <= 20_000_000
+		}
+	}
+	if animated {
 		if g, err := gif.DecodeAll(bytes.NewReader(data)); err == nil && len(g.Image) > 1 &&
-			g.Config.Width*g.Config.Height*len(g.Image) <= 40_000_000 {
+			g.Config.Width*g.Config.Height*len(g.Image) <= 20_000_000 {
 			p.w, p.h = g.Config.Width, g.Config.Height
 			canvas := image.NewRGBA(image.Rect(0, 0, p.w, p.h))
 			for i := range canvas.Pix {

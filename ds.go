@@ -217,6 +217,12 @@ func (g *G) draw9(t *Tex, x, y, w, h, s int, base *RGB, tileX, hollow bool) {
 	src := t
 	if base != nil {
 		src = shadeTex(t, s, curTheme.DarkChrome)
+		if !hollow && w > 0 && h > 0 {
+			// what a shaded texture looks like depends only on its size, colour and where the
+			// dither pattern starts, never on what's under it: render it once, then copy rows
+			g.blitBlock(nineBlock(src, t, w, h, s, *base, tileX, x&3, y&3), x, y, w, h)
+			return
+		}
 	}
 	for dy := 0; dy < h; dy++ {
 		y0, y1, f := mapSlice(dy, h, t.H, s, false), 0, 0.0
@@ -246,6 +252,70 @@ func (g *G) draw9(t *Tex, x, y, w, h, s int, base *RGB, tileX, hollow bool) {
 				g.blend(x+dx, y+dy, c, a)
 			}
 		}
+	}
+}
+
+// nineKey names one rendered shaded texture: the bars, buttons and tiles are redrawn every frame
+// at the same few sizes and colours, and working them out (hard-light, gradient, dither: floating
+// point for every pixel) was most of a frame's cost.
+type nineKey struct {
+	src          *Tex // the shaded texture (so a theme change makes new entries)
+	w, h, s      int
+	base         RGB
+	tileX        bool
+	phaseX, phaY int // where the 4x4 dither pattern starts
+}
+
+var (
+	nineCache  = map[nineKey][]uint16{}
+	ninePixels int
+)
+
+// nineCacheMax bounds the cache (pixels, 2 bytes each). Animations that change a tile's colour
+// every frame fill it with blocks used once; when full it starts again.
+const nineCacheMax = 1 << 20
+
+func nineBlock(src, t *Tex, w, h, s int, base RGB, tileX bool, phaseX, phaseY int) []uint16 {
+	key := nineKey{src, w, h, s, base, tileX, phaseX, phaseY}
+	if b, ok := nineCache[key]; ok {
+		return b
+	}
+	b := make([]uint16, w*h)
+	p := src.Pix
+	for dy := 0; dy < h; dy++ {
+		y0, y1, f := sliceY(dy, h, t.H, s)
+		for dx := 0; dx < w; dx++ {
+			sx := mapSlice(dx, w, t.W, s, tileX)
+			i := (y0*t.W + sx) * 4
+			c := RGB{p[i], p[i+1], p[i+2]}
+			a := float64(p[i+3]) / 255
+			if f > 0 {
+				j := (y1*t.W + sx) * 4
+				c = mix(c, RGB{p[j], p[j+1], p[j+2]}, f)
+				a = (a*(1-f) + float64(p[j+3])/255*f)
+			}
+			hl := RGB{hardLight(base.R, c.R), hardLight(base.G, c.G), hardLight(base.B, c.B)}
+			b[dy*w+dx] = dither565(phaseX+dx, phaseY+dy, mix(base, hl, a))
+		}
+	}
+	if ninePixels+len(b) > nineCacheMax {
+		clear(nineCache)
+		ninePixels = 0
+	}
+	nineCache[key] = b
+	ninePixels += len(b)
+	return b
+}
+
+// blitBlock copies a w x h block of screen pixels to (x, y), inside the clip.
+func (g *G) blitBlock(b []uint16, x, y, w, h int) {
+	r := image.Rect(x, y, x+w, y+h).Intersect(g.clip)
+	if r.Empty() {
+		return
+	}
+	for yy := r.Min.Y; yy < r.Max.Y; yy++ {
+		row := b[(yy-y)*w:]
+		copy(g.s.Px[yy*W+r.Min.X:yy*W+r.Max.X], row[r.Min.X-x:])
 	}
 }
 
@@ -389,14 +459,16 @@ func (g *G) dsAlert(x, y, w, h int) {
 // DS loading blip plays once per turn (App.loadingBlip).
 const loadingTurn = 0.5333
 
+// loadingOff: the steps at which squares 1..9 are off (5 = centre, always on), from ds.css's
+// keyframes.
+var loadingOff = [10][]int{1: {3, 4, 5}, 2: {4, 5, 6}, 3: {5, 6, 7}, 4: {2, 3, 4}, 6: {0, 6, 7},
+	7: {1, 2, 3}, 8: {0, 1, 2}, 9: {0, 1, 7}}
+
 func (g *G) dsLoading(x, y int, t float64) {
 	step := int(math.Mod(t, loadingTurn)/loadingTurn*8) % 8
-	// off steps for squares 1..9 (5 = centre, always on), from ds.css's keyframes
-	off := map[int][]int{1: {3, 4, 5}, 2: {4, 5, 6}, 3: {5, 6, 7}, 4: {2, 3, 4}, 6: {0, 6, 7},
-		7: {1, 2, 3}, 8: {0, 1, 2}, 9: {0, 1, 7}}
 	for sq := 1; sq <= 9; sq++ {
 		lit := true
-		for _, s := range off[sq] {
+		for _, s := range loadingOff[sq] {
 			if s == step {
 				lit = false
 			}

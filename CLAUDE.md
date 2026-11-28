@@ -308,6 +308,34 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.21.1)
+
+A review pass for speed and bugs (profiled with `go test -bench Draw -cpuprofile`).
+
+- Drawing is about 8x cheaper per frame (home 1.24 ms -> 0.15 ms on the PC; the same pixels).
+  `draw9` with a base colour (every bar, button, tile, key cap) was hard-light + gradient +
+  dither in floating point for each pixel, each frame: `nineBlock` (ds.go) renders a block once
+  per (texture, size, colour, dither phase) and `blitBlock` copies rows; the cache holds at most
+  `nineCacheMax` pixels and starts again when full. `shade` uses three small lookup tables.
+  `ds_cache_test.go` compares both with the pixel-by-pixel versions.
+- `App.waitApp`: while an app runs the UI thread keeps running `a.work`. Nobody read that queue
+  before (16 slots): a stereo reconnecting during an app got no picture, a Bluetooth remote's
+  buttons arrived all at once afterwards, Music could stall. `notify` does nothing while an app
+  has the screen. Fn+Q/W/E are handled inside apps too (`watchScreenshots`).
+- The loop draws one more frame after the last animated one, so toasts and the volume meter
+  leave on time; the brightness meter and the screenshot flash count as animating.
+- Duo Link: wrong pairing codes are counted per address across connections (`wrongCode`), not
+  per connection; frames are sent without copying (`net.Buffers`) and captured into one reused
+  buffer. Download Play / file sharing: the wrong-code count is under a lock; a failed write
+  while receiving is an error (the checksum only covered what arrived).
+- Photos: `decodeAny` reads the header first and refuses (or hands to ffmpeg) pictures over
+  48 megapixels (`photoFits`); `gifFrames` counts a GIF's frames without decoding, so an
+  animation is decoded only when all frames fit (20 million pixels). `guards_test.go`.
+- Editor: undo copies are kept to about 8 MB (`undoSteps`; 200 steps of a 1 MB file was 200 MB);
+  saving follows links and writes in place when the folder can't take a temporary file.
+- Video: frame buffers are reused, and the sound is passed on in whole samples.
+- Known, not fixed: the alarm doesn't ring while an app is open (the loop waits for the app).
+
 ## Local changes (0.21.0)
 
 - Settings > **Themes** (`themes.go`, page 2 tile `icons/settings/themes.svg` /

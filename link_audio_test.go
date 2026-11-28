@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os/exec"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -15,8 +16,8 @@ func TestDuoLinkAudio(t *testing.T) {
 		t.Skip("no ffmpeg for a test tone")
 	}
 	old, oldRoute := linkAudioSource, linkAudioRoute
-	routed, undone := 0, 0
-	linkAudioRoute = func() (string, func()) { routed++; return "test.monitor", func() { undone++ } }
+	var routed, undone atomic.Int32
+	linkAudioRoute = func() (string, func()) { routed.Add(1); return "test.monitor", func() { undone.Add(1) } }
 	linkAudioSource = func(device string) *exec.Cmd {
 		if device != "test.monitor" {
 			t.Errorf("recording %q, not the silent sink's monitor", device)
@@ -28,7 +29,9 @@ func TestDuoLinkAudio(t *testing.T) {
 	s, f := newTestLink(t)
 	s.h.audio = func() bool { return true }
 	c := dialLink(t, s, "Radio", "")
+	c.next()
 	c.c.Close()
+	waitNoPairing(s) // (dialling again at once was sometimes told "another stereo is pairing")
 	c = dialLinkAudio(t, s)
 	f.mu.Lock()
 	code := f.code
@@ -57,11 +60,11 @@ func TestDuoLinkAudio(t *testing.T) {
 		t.Fatalf("only %d audio pieces", got)
 	}
 	c.c.Close()
-	for i := 0; i < 50 && undone == 0; i++ {
+	for i := 0; i < 50 && undone.Load() == 0; i++ {
 		time.Sleep(100 * time.Millisecond)
 	}
-	if routed != 1 || undone != 1 {
-		t.Fatalf("the speaker should be quieted once and given back once: %d, %d", routed, undone)
+	if routed.Load() != 1 || undone.Load() != 1 {
+		t.Fatalf("the speaker should be quieted once and given back once: %d, %d", routed.Load(), undone.Load())
 	}
 }
 

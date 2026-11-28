@@ -83,6 +83,14 @@ func (a *App) watchScreenshots() (stop func()) {
 			default:
 			}
 			for _, k := range a.keys.Poll(100) {
+				if isMediaKey(k) && !k.Repeat && !k.Released { // Fn+Q / Fn+W / Fn+E work inside apps too
+					name := k.Name
+					select {
+					case a.work <- func() { a.mediaKey(name) }: // (the UI thread runs it: waitApp)
+					default:
+					}
+					continue
+				}
 				if !isScreenshotKey(k) {
 					continue
 				}

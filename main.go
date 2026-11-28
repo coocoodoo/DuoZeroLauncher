@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.21.0"
+const version = "0.21.1"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -213,6 +213,9 @@ func (a *App) replace(v View) { a.stack[len(a.stack)-1] = v; a.dirty = true; a.s
 func (a *App) theme() RGB { return a.cfg.theme() }
 
 func (a *App) notify(msg string, bad bool) {
+	if a.appRunning.Load() {
+		return // an app has the screen and the speaker: nothing to show it on
+	}
 	a.toast, a.toastBad, a.toastTill = msg, bad, time.Now().Add(2500*time.Millisecond)
 	if bad {
 		a.snd.Play("error")
@@ -301,6 +304,7 @@ func (a *App) withSudo(why string, fn func(pw string)) {
 
 func (a *App) loop() {
 	frame := time.Now()
+	wasAnim := false
 	for !a.quit && !cp0.ShouldQuit() {
 		wait := 33
 		if !a.animating() {
@@ -340,10 +344,14 @@ func (a *App) loop() {
 		a.checkDoctorAsk()
 		a.checkApps()
 		a.checkAlarm()
-		if a.dimLevel < 2 && (a.dirty || a.animating() || a.now.Sub(frame) >= time.Second) {
+		// one more frame after the last animated one: it is the frame that takes a toast or the
+		// volume meter away (they used to stay up to a second longer, until the idle redraw)
+		anim := a.animating()
+		if a.dimLevel < 2 && (a.dirty || anim || wasAnim || a.now.Sub(frame) >= time.Second) {
 			a.draw()
 			frame = a.now
 		}
+		wasAnim = anim
 		if a.dimLevel == 2 {
 			a.loadingSound(false) // screen off: the squares can't be seen
 		}
@@ -357,8 +365,9 @@ func (a *App) animating() bool {
 	if t, ok := a.top().(Ticker); ok && t.Animating(a) {
 		return true
 	}
-	return time.Now().Before(a.toastTill) || time.Now().Before(a.pressTill) || a.busy() != "" ||
-		time.Now().Before(a.vol.shownTill)
+	now := time.Now()
+	return now.Before(a.toastTill) || now.Before(a.pressTill) || a.busy() != "" ||
+		now.Before(a.vol.shownTill) || now.Before(a.bri.shownTill) || now.Before(a.flashUntil)
 }
 
 func (a *App) handle(k cp0.Key) {
@@ -918,7 +927,7 @@ func (a *App) runApp(e *Entry, argv []string, env []string) {
 		a.keys.pause(true)
 		a.appRunning.Store(true)
 		stopShots := a.watchScreenshots() // Fn+J still takes screenshots inside the app
-		err = cmd.Wait()
+		err = a.waitApp(cmd)
 		stopShots()
 		a.appRunning.Store(false)
 		a.keys.pause(false)
@@ -935,6 +944,23 @@ func (a *App) runApp(e *Entry, argv []string, env []string) {
 		a.notify(e.Name+" could not start", true)
 	}
 	a.dirty = true
+}
+
+// waitApp waits for the app to exit, and meanwhile runs what background work hands to the UI
+// thread (a.work). Nobody read that queue while an app ran: a stereo that reconnected a few
+// times filled it and then got no picture until the app closed, a Bluetooth remote's buttons all
+// arrived at once afterwards, and Music could stall telling about a file it skipped.
+func (a *App) waitApp(cmd *exec.Cmd) error {
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
+	for {
+		select {
+		case err := <-exited:
+			return err
+		case fn := <-a.work:
+			fn()
+		}
+	}
 }
 
 // drawLaunching plays the open animation before an app takes the screen: from the home screen
