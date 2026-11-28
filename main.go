@@ -101,6 +101,7 @@ type App struct {
 	loadingOn bool        // the loading ticks are playing (the busy screen's squares are on screen)
 	blanked   bool        // the panel is powered down (screenOff)
 	asleep    atomic.Bool // the screen is off: background work pauses to save battery
+	poke      atomic.Bool // a background goroutine wants a redraw (dirty itself belongs to the UI thread)
 }
 
 func main() {
@@ -192,7 +193,7 @@ func (a *App) statusLoop() {
 		}
 		n++
 		a.status.refresh(n%3 == 0)
-		a.dirty = true
+		a.poke.Store(true)
 	}
 }
 
@@ -279,7 +280,7 @@ func (a *App) setProgress(msg string, p float64) {
 		a.progress = p
 	}
 	a.busyMu.Unlock()
-	a.dirty = true
+	a.poke.Store(true)
 }
 
 // withSudo asks for the account password (remembered for ten minutes) and runs fn with it.
@@ -347,6 +348,9 @@ func (a *App) loop() {
 		a.checkAlarm()
 		// one more frame after the last animated one: it is the frame that takes a toast or the
 		// volume meter away (they used to stay up to a second longer, until the idle redraw)
+		if a.poke.Swap(false) {
+			a.dirty = true
+		}
 		anim := a.animating()
 		if a.dimLevel < 2 && (a.dirty || anim || wasAnim || a.now.Sub(frame) >= time.Second) {
 			a.draw()
