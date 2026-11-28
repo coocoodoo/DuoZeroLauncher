@@ -39,6 +39,7 @@ type Config struct {
 	LockOnWake bool
 	LinkOn     bool // Duo Link: show the screen on a car stereo
 	LinkAudio  bool // and send it the sound
+	Saver      bool // Wi-Fi off while the screen is off, on battery (saver.go)
 	LinkWifi   bool // over the Cardputer's own Wi-Fi (a hotspot the stereo joins)
 	path       string
 }
@@ -51,7 +52,7 @@ func defaultConfig() *Config {
 	return &Config{
 		Name: strings.ToUpper(user), Color: 10, BirthMonth: 1, BirthDay: 1, Message: "HELLO FROM MY CARDPUTER",
 		Clock24: true, Sounds: true, SoundVol: 6, Jingle: true, DimAfter: 60, OffAfter: 120,
-		Hidden: map[string]bool{}, Used: map[string]int64{}, AlarmH: 7, AlarmM: 0, LinkAudio: true,
+		Hidden: map[string]bool{}, Used: map[string]int64{}, AlarmH: 7, AlarmM: 0, LinkAudio: true, Saver: true,
 	}
 }
 
@@ -144,6 +145,8 @@ func loadConfig() *Config {
 			c.LinkOn = b
 		case "link_audio":
 			c.LinkAudio = b
+		case "saver":
+			c.Saver = b
 		case "link_wifi":
 			c.LinkWifi = b
 		}
@@ -185,7 +188,7 @@ func (c *Config) Save() error {
 		"last_ssh=" + c.LastSSH, "picto_addr=" + c.PictoAddr, "picto_code=" + c.PictoCode, "alarm_on=" + bit(c.AlarmOn),
 		"alarm_h=" + strconv.Itoa(c.AlarmH), "alarm_m=" + strconv.Itoa(c.AlarmM),
 		"pin=" + c.PIN, "lock_on_wake=" + bit(c.LockOnWake), "duo_link=" + bit(c.LinkOn), "link_audio=" + bit(c.LinkAudio),
-		"link_wifi=" + bit(c.LinkWifi),
+		"link_wifi=" + bit(c.LinkWifi), "saver=" + bit(c.Saver),
 	}
 	if err := os.MkdirAll(filepath.Dir(c.path), 0o755); err != nil {
 		return err

@@ -159,6 +159,13 @@ func screenPage(a *App) View {
 		&Row{Label: "Lock when it wakes", Kind: rowToggle, On: a.cfg.LockOnWake,
 			Do: func(a *App, r *Row) { a.cfg.LockOnWake = r.On; a.save() }},
 		&Row{Label: "Lock now", Kind: rowAction, Do: func(a *App, r *Row) { a.lock() }},
+		&Row{Label: "Battery saver", Kind: rowToggle, On: a.cfg.Saver,
+			Do: func(a *App, r *Row) {
+				a.cfg.Saver = r.On
+				a.save()
+				a.notify(map[bool]string{true: "Wi-Fi turns off while the screen is off", false: "Wi-Fi stays on while the screen is off"}[r.On], false)
+			}},
+		&Row{Label: "Last sleep", Kind: rowInfo, Value: saverLast(a)},
 	)
 }
 

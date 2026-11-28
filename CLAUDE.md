@@ -308,6 +308,23 @@ then reboot, or ask the user to restart it.
   `zc-app install`. "Receive from an address" for networks that block broadcasts.
   `dlplay_test.go` shares an app over loopback.
 
+## Local changes (0.22.0)
+
+- Battery saver (`saver.go`; Settings > Screen > Battery saver, `Config.Saver`, on by default):
+  30 s (`saverDelay`) after the screen goes off, on battery, Duo switches Wi-Fi off
+  (`nmcli radio wifi off`, no root needed) and back on when the screen wakes. Not on the
+  charger, with Duo Link on or its Wi-Fi up, with a stereo connected, a job running, or a chat /
+  transfer / stereo setup on the stack (`saverWanted`). A Wi-Fi the user had off stays off.
+  `~/.cache/dslauncher/saver-wifi-off` marks it, so start-up (`saverRecover`) and leaving Duo
+  (`saverQuit`) always give Wi-Fi back. "Last sleep" shows how long and how many % the last
+  sleep on battery used (10 minutes or more). `saver_test.go`.
+- Why only Wi-Fi, measured on the Cardputer with the screen off (charging-current change on
+  the bq27220 gauge): the CPU is 99.7% idle at 600 MHz already; the kernel has no sleep states
+  (`/sys/power/state` empty, no CPU hotplug, no cpuidle states); Wi-Fi off about 25 mA;
+  Bluetooth off about 3 mA (not worth dropping headphones); `vcgencmd display_power 0`
+  nothing. The governor and the ACT LED need root and wouldn't change an idle system.
+- While asleep with the saver on, the Cardputer can't be reached over SSH on battery.
+
 ## Local changes (0.21.2)
 
 - With a PIN set, Duo starts locked (`App.lockAtStart`, called in `main` right after the home

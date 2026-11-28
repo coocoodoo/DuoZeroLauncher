@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const version = "0.21.2"
+const version = "0.22.0"
 
 // View is one screen (home, settings, a dialog...).
 type View interface {
@@ -101,6 +101,7 @@ type App struct {
 	loadingOn bool        // the loading ticks are playing (the busy screen's squares are on screen)
 	blanked   bool        // the panel is powered down (screenOff)
 	asleep    atomic.Bool // the screen is off: background work pauses to save battery
+	saver     saverState  // Wi-Fi off while the screen is off (saver.go)
 	poke      atomic.Bool // a background goroutine wants a redraw (dirty itself belongs to the UI thread)
 }
 
@@ -158,6 +159,7 @@ func main() {
 	if !a.sim {
 		go a.doctorAtStart()
 		go a.watchRemotes()
+		go saverRecover()    // a Duo that stopped while asleep could leave Wi-Fi off
 		go cleanupLinkSink() // a Duo that crashed while a stereo played could leave the speaker quiet
 		if a.cfg.LinkOn {
 			a.startLink()
@@ -345,6 +347,7 @@ func (a *App) loop() {
 		a.checkBattery()
 		a.checkDoctorAsk()
 		a.checkApps()
+		a.checkSaver()
 		a.checkAlarm()
 		// one more frame after the last animated one: it is the frame that takes a toast or the
 		// volume meter away (they used to stay up to a second longer, until the idle redraw)
@@ -531,6 +534,7 @@ func (a *App) screenOff() {
 	// bar stops polling, the main loop wakes every 2 s instead of every 0.5 s
 	a.snd.Close()
 	a.asleep.Store(true)
+	a.saverAsleep()
 }
 
 // screenOn powers the panel back up (the brightness is restored by wake).
@@ -541,6 +545,7 @@ func (a *App) screenOn() {
 	}
 	a.guardCorner(true)
 	a.asleep.Store(false)
+	a.saverAwake()
 	go a.status.refresh(true) // the status bar was not polled while the screen was off
 }
 
@@ -1059,6 +1064,7 @@ func (a *App) shutdown() {
 		a.link.shutdown()
 	}
 	restoreLinkAudio()           // the speaker plays again for whatever runs next
+	a.saverQuit()                // and Wi-Fi is back on
 	if a.leave && a.linkWifiUp { // the stock launcher gets the usual Wi-Fi back
 		stopHotspot()
 	}
